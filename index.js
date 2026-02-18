@@ -144,16 +144,16 @@ const port = process.env.Port;
 // Create the HTTPS server manually
 const server = https.createServer(options, app);
 
-server.listen(PORT, () => {
-    console.log(`🚀 Secure Server is running on https://localhost:${PORT}`);
+server.listen(port, () => {
+    console.log(`🚀 Secure Server is running on https://localhost:${port}`);
 });
 
 // Optional: Error handling for Windows port conflicts
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
-    console.error(`❌ Error: Port ${PORT} is already in use by another service (likely IIS or Skype).`);
+    console.error(`❌ Error: Port ${port} is already in use by another service (likely IIS or Skype).`);
   } else if (e.code === 'EACCES') {
-    console.error(`❌ Error: You must run Terminal as Administrator to use port ${PORT}.`);
+    console.error(`❌ Error: You must run Terminal as Administrator to use port ${port}.`);
   } else {
     console.error(e);
   }
