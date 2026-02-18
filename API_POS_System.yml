@@ -4,7 +4,7 @@ info:
   description: API for POS System.
   version: 1.0.0
 servers:
-  - url: http://35.186.144.224:443
+  - url: http://310.10.46.2:443
     description: Development Server
   - url: http://localhost:5001
     description: Development Server localhost
