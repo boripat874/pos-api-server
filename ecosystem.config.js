@@ -9,7 +9,7 @@ module.exports = {
       Users: "pgadmin",
       Password: "0000",
       Database: "pos",
-      Port: 3030
+      Port: 443
     },
     
   }],
