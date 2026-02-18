@@ -1,0 +1,1454 @@
+openapi: 3.0.0
+info:
+  title: POS OPEN API Document
+  description: OPEN API for POS System.
+  version: 1.0.0
+servers:
+  - url: http://35.186.144.224:443
+    description: Development Server
+  - url: http://localhost:5001
+    description: Development Server localhost
+    
+paths:
+  /api/shoplist:
+    get:
+      summary: Shop list
+      description: Retrieve a list of shops.
+      tags:
+        - Shop
+      security:
+        - api_key: []
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: number
+                    description: จํานวนรายการ
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        shopid:
+                          type: string
+                          description: เลข Shop
+                        merid:
+                          type: string
+                          description: เลข merchant
+                        shopnameth:
+                          type: string
+                          description: ชื่อ Store ภาษาไทย
+                        shopnameeng:
+                          type: string
+                          description: ชื่อ Store ภาษาอังกฤษ
+              example:
+                total: 2
+                result:
+                  [
+                    {
+                      shopid: "S250401",
+                      merid: "M250401",
+                      shopnameth: "ร้านค้า 1",
+                      shopnameeng: "shop 1",
+                    },
+                    {
+                      shopid: "S250402",
+                      merid: "M250401",
+                      shopnameth: "ร้านค้า 2",
+                      shopnameeng: "shop 2",
+                    },
+                  ]
+
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/shopdetail:
+    post:
+      summary: Shop detail
+      description: Retrieve details of a shop.
+      tags:
+        - Shop
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop
+              required:
+                - shopid
+            example:
+              shopid: "S250401"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shopid:
+                    type: string
+                    description: เลข Shop
+                  merid:
+                    type: string
+                    description: เลข merchant
+                  shoptype:
+                    type: string
+                    description: หมวดหมู Store
+                  shopnameth:
+                    type: string
+                    description: ชื่อ Store ภาษาไทย
+                  shopnameeng:
+                    type: string
+                    description: ชื่อ Store ภาษาอังกฤษ
+                  shopopentime:
+                    type: string
+                    description: เวลาเปิด Store
+                  shopclosetime:
+                    type: string
+                    description: เวลาปิด Store
+                  shopexpiredate:
+                    type: string
+                    description: เวลาหมดอายุ Store
+                  shopdata1:
+                    type: string
+                    description: ข้อมูล Store 1
+                  shopdata2:
+                    type: string
+                    description: ข้อมูล Store 2
+              example:
+                shopid: "S250401"
+                merid: "M250401"
+                shoptype: "type1"
+                shopnameth: "ร้านค้า 1"
+                shopnameeng: "shop 1"
+                shopopentime: "08:00"
+                shopclosetime: "17:00"
+                shopexpiredate: "2021-01-30"
+                shopdata1: "shop data 1"
+                shopdata2: "shop data 2"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/shopdetailupdate:
+    put:
+      summary: Update shop detail
+      description: Update details of a shop.
+      tags:
+        - Shop
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop
+                shopnameth:
+                  type: string
+                  description: ชื่อ Store ภาษาไทย
+                shopnameeng:
+                  type: string
+                  description: ชื่อ Store ภาษาอังกฤษ
+                shopopentime:
+                  type: string
+                  description: เวลาเปิด Store
+                shopclosetime:
+                  type: string
+                  description: เวลาปิด Store
+                shopexpiredate:
+                  type: string
+                  description: เวลาหมดอายุ Store
+            example:
+              shopid: "S250401"
+              shopnameth: "ร้านค้า 5"
+              shopnameeng: "shop 5"
+              shopopentime: "08:00"
+              shopclosetime: "17:00"
+              shopexpiredate: "2021-01-30"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shopid:
+                    type: string
+                    description: เลข Shop
+                  msg:
+                    type: string
+                    description: ข้อความอธิบายสถานะ
+              example:
+                shopid: S250401,
+                msg: Update store detail Success
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/productlist:
+    post:
+      summary: Product list
+      description: Retrieve a list of products.
+      tags:
+        - Product
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop
+              required:
+                - shopid
+            example:
+              shopid: "S250401"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: number
+                    description: จํานวนรายการ
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        productid:
+                          type: string
+                          description: เลข Product
+                        shopid:
+                          type: string
+                          description: เลข Shop
+                        productnameth:
+                          type: string
+                          description: ชื่อ Product ภาษาไทย
+                        productnameeng:
+                          type: string
+                          description: ชื่อ Product ภาษาอังกฤษ
+              example:
+                total: 2
+                result:
+                  [
+                    {
+                      productid: "P250401",
+                      shopid: "S250401",
+                      productnameth: "สินค้า 1",
+                      productnameeng: "product 1",
+                    },
+                    {
+                      productid: "P250402",
+                      shopid: "S250401",
+                      productnameth: "สินค้า 2",
+                      productnameeng: "product 2",
+                    },
+                  ]
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/productdetail:
+    post:
+      summary: Product detail
+      description: Retrieve details of a product.
+      tags:
+        - Product
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productid:
+                  type: string
+                  description: เลข Product
+              required:
+                - productid
+            example:
+              productid: "P250401"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  productid:
+                    type: string
+                    description: เลข Product
+                  shopid:
+                    type: string
+                    description: เลข Shop
+                  productnameth:
+                    type: string
+                    description: ชื่อ Product ภาษาไทย
+                  productnameeng:
+                    type: string
+                    description: ชื่อ Product ภาษาอังกฤษ
+                  productdatath:
+                    type: string
+                    description: ชื่อ Product ภาษาไทย
+                  productdataeng:
+                    type: string
+                    description: ชื่อ Product ภาษาอังกฤษ
+                  productprice:
+                    type: number
+                    description: ราคา Product
+                  uomtext:
+                    type: string
+                    description: หน่วยของสินค้า
+              example:
+                productid: "P250401"
+                shopid: "S250401"
+                productnameth: "สินค้า 1"
+                productnameeng: "product 1"
+                productdatath: "สินค้าคุณภาพ"
+                productdataeng: "Quality products"
+                productprice: 100
+                uomtext: "ชิ้น"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/productcreate:
+    post:
+      summary: Add new product
+      description: Create a new product.
+      tags:
+        - Product
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productid:
+                  type: string
+                  description: เลข Product
+                shopid:
+                  type: string
+                  description: เลข Shop
+                productnameth:
+                  type: string
+                  description: ชื่อ Product ภาษาไทย
+                productnameeng:
+                  type: string
+                  description: ชื่อ Product ภาษาอังกฤษ
+                productdatath:
+                  type: string
+                  description: ชื่อ Product ภาษาไทย
+                productdataeng:
+                  type: string
+                  description: ชื่อ Product ภาษาอังกฤษ
+                productprice:
+                  type: number
+                  description: ราคา Product
+            example:
+              productid: "P250403"
+              shopid: "S250403"
+              productnameth: "สินค้า 3"
+              productnameeng: "product 3"
+              productdatath: "สินค้าคุณภาพ"
+              productdataeng: "Quality products"
+              productprice: 100
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  productid:
+                    type: string
+                    description: เลข Product
+                  msg:
+                    type: string
+                    description: ข้อความอธิบายสถานะ
+              example:
+                productid: "P250403"
+                msg: "Create product Success"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/productupdate:
+    put:
+      summary: Update product
+      description: Update an existing product.
+      tags:
+        - Product
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productid:
+                  type: string
+                  description: เลข Product
+                shopid:
+                  type: string
+                  description: เลข Shop
+                productnameth:
+                  type: string
+                  description: ชื่อ Product ภาษาไทย
+                productnameeng:
+                  type: string
+                  description: ชื่อ Product ภาษาอังกฤษ
+                productdatath:
+                  type: string
+                  description: ชื่อ Product ภาษาไทย
+                productdataeng:
+                  type: string
+                  description: ชื่อ Product ภาษาอังกฤษ
+                productprice:
+                  type: number
+                  description: ราคา Product
+            example:
+              productid: "P250403"
+              shopid: "S250401"
+              productnameth: "สินค้า 4"
+              productnameeng: "product 4"
+              productdatath: "สินค้าคุณภาพ"
+              productdataeng: "Quality products"
+              productprice: 100
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  productid:
+                    type: string
+                    description: เลข Product
+                  msg:
+                    type: string
+                    description: ข้อความอธิบายสถานะ
+              example:
+                productid: "P250403"
+                msg: "Update product Success"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/productdelete:
+    delete:
+      summary: Delete product
+      description: Delete an existing product.
+      tags:
+        - Product
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productid:
+                  type: string
+                  description: เลข Product
+              required:
+                - productid
+            example:
+              productid: "P250403"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  productid:
+                    type: string
+                    description: เลข Product
+                  msg:
+                    type: string
+                    description: ข้อความอธิบายสถานะ
+              example:
+                productid: "P250403"
+                msg: "Delete product Success"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/orderlist:
+    post:
+      summary: Order list
+      description: Retrieve a list of orders.
+      tags:
+        - Order
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop
+              required:
+                - shopid
+            example:
+              shopid: "S250401"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: number
+                    description: จํานวนรายการ
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        orderid:
+                          type: string
+                          description: เลข ID Order
+                        shopid:
+                          type: string
+                          description: เลข Shop
+                        ordernumber:
+                          type: string
+                          description: เลข Order
+                        ordertype:
+                          type: number
+                          description: ประเภท Order (0 = จาก ZooApp, 1 = จากPOS)
+                        ordertimestamp:
+                          type: number
+                          description: เวลา Order
+                        orderstatus:
+                          type: string
+                          description: สถานะ Order
+                        ordertotalprice:
+                          type: number
+                          description: ราคารวม Order
+                        pickupnow:
+                          type: number
+                          description: 0 = ไม่สามารถรับทันทีได้ , 1 = สามารถรับทันทีได้
+                        starttime:
+                          type: string
+                          description: เวลาเริ่ม
+                        endtime:
+                          type: string
+                          description: เวลาสิ้นสุด
+              example:
+                total: 2
+                result:
+                  [
+                    {
+                      orderid: "O250401",
+                      shopid: "S250401",
+                      ordernumber: "ON250401",
+                      ordertype: 0,
+                      ordertimestamp: 1737973730,
+                      orderstatus: 1,
+                      ordertotalprice: 2000,
+                      pickupnow: 1,
+                      starttime: "08:00",
+                      endtime: "08:30",
+                    },
+                    {
+                      orderid: "O250402",
+                      shopid: "S250401",
+                      ordernumber: "ON250401",
+                      ordertimestamp: 1737973730,
+                      orderstatus: 1,
+                      ordertotalprice: 3000,
+                      pickupnow: 1,
+                      starttime: "08:00",
+                      endtime: "08:30",
+                    },
+                  ]
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/orderdetail:
+    post:
+      summary: Order detail
+      description: Retrieve details of an order.
+      tags:
+        - Order
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+              required:
+                - ordernumber
+            example:
+              ordernumber: "ON250401"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderid:
+                    type: string
+                    description: เลข ID Order
+                  shopid:
+                    type: string
+                    description: เลข Shop
+                  ordernumber:
+                    type: string
+                    description: เลข Order
+                  ordertype:
+                    type: number
+                    description: ประเภท Order (0 = จาก ZooApp, 1 = จากPOS)
+                  ordertimestamp:
+                    type: number
+                    description: เวลา Order
+                  orderstatus:
+                    type: string
+                    description: สถานะ Order
+                  ordertotalprice:
+                    type: number
+                    description: ราคารวม Order
+                  ordertotaldiscount:
+                    type: number
+                    description: ส่วนลด Order
+                  pickupnow:
+                    type: number
+                    description: 0 = ไม่สามารถรับทันทีได้ , 1 = สามารถรับทันทีได้
+                  starttime:
+                    type: string
+                    description: เวลาเริ่ม
+                  endtime:
+                    type: string
+                    description: เวลาสิ้นสุด
+                  productinorder:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        linenumber:
+                          type: number
+                          description: หมายเลขรายการ
+                        productid:
+                          type: string
+                          description: เลข Product
+                        qty:
+                          type: number
+                          description: จำนวนที่สั่ง
+                        productprice:
+                          type: number
+                          description: ราคาของ Product
+                        remark:
+                          type: string
+                          description: Remark ของรายการ
+              example:
+                orderid: "O250401"
+                shopid: "S250401"
+                ordernumber: "ON250401"
+                ordertype: 0
+                ordertimestamp: 1737973730
+                orderstatus: 1
+                ordertotalprice: 3000
+                ordertotaldiscount: 100
+                pickupnow: 1
+                starttime: "08:00"
+                endtime: "08:30"
+                productinorder:
+                  [
+                    { linenumber: 1, productid: "P250401", qty: 1, productprice: 100 , remark: "-"},
+                    { linenumber: 2, productid: "P250402", qty: 1, productprice: 200 , remark: "-" },
+                  ]
+
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/ordercreate:
+    post:
+      summary: Order create
+      description: Create a new order.
+      tags:
+        - Order
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop
+                ordernumber:
+                  type: string
+                  description: เลข Order
+                ordertimestamp:
+                  type: number
+                  description: เวลา Order
+                ordertotalprice:
+                  type: number
+                  description: ราคารวม Order
+                ordertotaldiscount:
+                  type: number
+                  description: ส่วนลด Order
+                pickupnow:
+                  type: number
+                  description: 0 = ไม่สามารถรับทันทีได้ , 1 = สามารถรับทันทีได้
+                starttime:
+                  type: number
+                  description: เวลาเริ่ม Order
+                endtime:
+                  type: number
+                  description: เวลาสิ้นสุด Order
+                productinorder:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      linenumber:
+                        type: number
+                        description: หมายเลขรายการ
+                      productid:
+                        type: string
+                        description: เลข Product
+                      productnameeng:
+                        type: string
+                        description: ชื่อ Product ภาษาอังกฤษ
+                      qty:
+                        type: number
+                        description: จำนวนที่สั่ง
+                      productprice:
+                        type: number
+                        description: ราคาของ Product
+                      remark:
+                        type: string
+                        description: Remark ของรายการ
+              required:
+                - shopid
+                - ordernumber
+                - ordertimestamp
+                - ordertotalprice
+                - ordertotaldiscount
+                - pickupnow
+                - starttime
+                - endtime
+                - productinorder
+            example:
+              shopid: "S250401"
+              ordernumber: "ON250403"
+              ordertimestamp: 1737973730
+              ordertotalprice: 3000
+              ordertotaldiscount: 100
+              pickupnow: 1
+              starttime: "08:00"
+              endtime: "08:30"
+              productinorder:
+                [
+                  { linenumber: 1, productid: "P250401",productnameeng: "Chicken fried rice", qty: 1, productprice: 100 , remark: "เผ็ดน้อย"}
+                ]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ordernumber:
+                    type: string
+                    description: เลข Order
+                  msg:
+                    type: string
+                    description: ข้อความอธิบายสถานะ
+              example:
+                ordernumber: "ON250403"
+                msg: "Create order Success"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/orderupdatestatus:
+    put:
+      summary: Order update status
+      description: Update the status of an order.
+      tags:
+        - Order
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+                orderstatus:
+                  type: string
+                  description: สถานะที่ทำการ Update  [1 = Confirm order with paid , 2 = Confirm order without paid , 3 = Order canceled by system , 4 = Order canceled by customer]
+              required:
+                - ordernumber
+                - orderstatus
+            example:
+              ordernumber: "ON250401"
+              orderstatus: 1
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderid:
+                    type: string
+                    description: เลข Order
+                  msg:
+                    type: string
+                    description: ข้อความอธิบายสถานะ
+              example:
+                orderid: "O250401"
+                msg: "Update order Success"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/walletupdate:
+    put:
+      summary: Wallet update
+      description: Update the wallet balance.
+      tags:
+        - Wallet
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+                walletpaymentstatus:
+                  type: number
+                  description: สถานะการจ่าย , 1 = จ่ายด้วย Wallet สำเร็จ , 0 = จ่ายด้วย Wallet ไม่สำเร็จ
+              required:
+                - ordernumber
+                - walletpaymentstatus
+            example:
+              ordernumber: "ON250401"
+              walletpaymentstatus: 1
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ordernumber:
+                    type: string
+                    description: เลข Wallet
+                  msg:
+                    type: string
+                    description: ข้อความอธิบายสถานะ
+              example:
+                ordernumber: "ON250401"
+                msg: "Update wallet payment status Success"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/receiptlist:
+    post:
+      summary: Receipt list
+      description: Retrieve a list of receipts.
+      tags:
+        - Receipt
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop
+              required:
+                - shopid
+            example:
+              shopid: "S250401"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: number
+                    description: จํานวนรายการ
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        receiptnumber:
+                          type: string
+                          description: เลข Receipt
+                        ordernumber:
+                          type: string
+                          description: เลข Order
+                        totalprice:
+                          type: number
+                          description: ราคารวมของ Order
+              example:
+                total: 1
+                result:
+                  [
+                    {
+                      receiptnumber: "R250401",
+                      ordernumber: "ON250401",
+                      totalprice: 200,
+                    },
+                  ]
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+  /api/availableslot:
+    post:
+      summary: Available slot
+      description: Retrieve data available slot.
+      tags:
+        - Available slot
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop
+                qty:
+                  type: number
+                  description: จำนวนจานที่สั่งใน Order
+              required:
+                - shopid
+                - qty
+            example:
+              shopid: "S250401"
+              qty: 1
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shopid:
+                    type: string
+                    description: เลข Shop
+                  pickupnow:
+                    type: number
+                    description: 0 = ไม่สามารถรับทันทีได้  , 1 = สามารถรับทันทีได้
+                  availableslot:
+                    type: array
+                    description: แสดง Array ช่วงเวลาของ Slot ที่ว่าง
+                    items:
+                      type: object
+                      properties:
+                        remaining:
+                          type: number
+                          description: จำนวนที่เหลือใน Slot
+                        starttime:
+                          type: string
+                          description: เวลาเริ่ม
+                        endtime:
+                          type: string
+                          description: เวลาสิ้นสุด
+              example:
+                shopid: "S250401"
+                pickupnow: 0
+                availableslot:
+                  [
+                    {remaining: 10 , starttime: "12:00", endtime: "12:30" },
+                    {remaining: 10 , starttime: "12:30", endtime: "13:00" },
+                  ]
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Invalid request"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+              example:
+                message: "Unauthorized"
+        # "403":
+        #   description: Forbidden
+        # "404":
+        #   description: Not found
+        # "429":
+        #   description: Too Many Requests
+
+components:
+  securitySchemes:
+    api_key:
+      type: apiKey
+      description: API Key สำหรับ Authentication
+      in: header
+      name: X-API-KEY
+
+security:
+  - api_key: []
