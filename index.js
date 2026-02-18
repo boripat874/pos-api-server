@@ -1,3 +1,4 @@
+const https = require('https');
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -16,6 +17,11 @@ const cron = require("node-cron");
 require("dotenv").config();
 
 // const swaggerJsdoc = require("swagger-jsdoc");
+
+const options = {
+  key: fs.readFileSync(path.join(__dirname, 'private.key')),
+  cert: fs.readFileSync(path.join(__dirname, 'certificate.crt'))
+};
 
 const swaggerDocument = YAML.load('./API_POS_OpenAPI.yml');
 const swaggerDocumentPossystem = YAML.load('./API_POS_System.yml');
@@ -134,9 +140,27 @@ app.get("/", (req, res) => {
 
 // Start the server
 const port = process.env.Port;
-app.listen(port, function () {
-    console.log(`Server is running on http://localhost:${port}`);
+
+// Create the HTTPS server manually
+const server = https.createServer(options, app);
+
+server.listen(PORT, () => {
+    console.log(`🚀 Secure Server is running on https://localhost:${PORT}`);
 });
+
+// Optional: Error handling for Windows port conflicts
+server.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`❌ Error: Port ${PORT} is already in use by another service (likely IIS or Skype).`);
+  } else if (e.code === 'EACCES') {
+    console.error(`❌ Error: You must run Terminal as Administrator to use port ${PORT}.`);
+  } else {
+    console.error(e);
+  }
+});
+// app.listen(port, function () {
+//     console.log(`Server is running on http://localhost:${port}`);
+// });
 
 
 
