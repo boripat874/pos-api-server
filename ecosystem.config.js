@@ -5,9 +5,9 @@ module.exports = {
     watch: true,
     env: {
       NameDatabase: "pg",
-      Host: "127.0.0.1",
-      Users: "pgadmin",
-      Password: "0000",
+      Host: "10.10.17.2",
+      Users: "postgres",
+      Password: "zoo@pos2026_pgsql",
       Database: "pos",
       Port: 443
     },
