@@ -1268,6 +1268,41 @@ paths:
         - Receipt
       security:
         - api_key: []
+      parameters:
+        - in: query
+          name: serach
+          description: คำค้นหา
+          schema:
+            type: string
+            description: คำค้นหา
+          required: false
+        - in: query
+          name: period
+          description: ช่วงเวลา
+          schema:
+            type: string
+            enum: [today, thisweek, thismonth, thisyear, bydate]
+            default: today
+            description: ช่วงเวลา
+          required: false
+        - in: query
+          name: date_start
+          description: วันที่เริ่มต้น
+          schema:
+            type: string
+            format: date
+            default: "2025-01-01"
+            description: วันที่เริ่มต้น
+          required: false
+        - in: query
+          name: date_end
+          description: วันที่สิ้นสุด
+          schema:
+            type: string
+            format: date
+            default: "2025-12-30"
+            description: วันที่สิ้นสุด
+          required: false
       requestBody:
         required: true
         content:
@@ -1298,23 +1333,59 @@ paths:
                     items:
                       type: object
                       properties:
-                        receiptnumber:
+                        shopid:
+                          type: string
+                          description: เลข Shop
+                        orderid:
+                          type: string
+                          description: เลข Order
+                        receiptid:
                           type: string
                           description: เลข Receipt
                         ordernumber:
                           type: string
                           description: เลข Order
+                        receiptnumber:
+                          type: string
+                          description: เลข Receipt
+                        paymentType:
+                          type: number
+                          description: ประเภทการชําระเงิน
+                        receiptcash:
+                          type: number
+                          description: จำนวนเงินที่ชําระ
+                        receiptchange:
+                          type: number
+                          description: จำนวนเงินที่เหลือ
+                        receiptdiscount:
+                          type: number
+                          description: จำนวนส่วนลด
                         totalprice:
                           type: number
                           description: ราคารวมของ Order
+                        urlfile:
+                          type: string
+                          description: URL ไฟล์ใบเสร็จ
+                        create_at:
+                          type: number
+                          description: เวลาสร้าง
               example:
                 total: 1
                 result:
                   [
                     {
-                      receiptnumber: "R250401",
+                      shopid: "S250401",
+                      orderid: "O250401",
+                      receiptid: "R250401",
                       ordernumber: "ON250401",
-                      totalprice: 200,
+                      receiptnumber: "RN250401",
+                      paymentType: 1,
+                      receiptcash: 1000,
+                      receiptchange: 0,
+                      receiptdiscount: 0,
+                      totalprice: 1000,
+                      urlfile: "https://example.com/receipt.pdf",
+                      create_at: 1672531200,
                     },
                   ]
         "400":

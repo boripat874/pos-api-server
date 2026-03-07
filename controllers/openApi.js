@@ -1639,75 +1639,109 @@ exports.walletupdate = (req, res) => {
 };
 
 // receipt list ✓
-exports.receiptlist = (req, res) => {
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Request timed out")), timeout)
-  );
+  exports.receiptlist = (req, res) => {
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), timeout)
+    );
+  
+    const receiptListLogic = new Promise(async (resolve, reject) => {
+      try {
+        
+        const { shopid } = req.body;
+        // console.log(req.body);
+        // Validate API key
+        await validateApiKey(req);
 
-  const { shopid } = req.body;
+        // ตรวจสอบการอนุญาตเข้าสู่ระบบ
+        // await checkAuthorizetion(req);
 
-  const receiptListLogic = new Promise(async (resolve, reject) => {
-    try {
+        const timeStamp = await convertTotimestamp(req);
+        const seach = req.params.seach || "";
+  
+        if (!shopid || !checkString(shopid)) {
+          return reject({ status: 400, message: "Invalid request" });
+        }
+  
+        const db_shopid = await db
+          .select("shopid")
+          .from("shopinfo")
+          .where({ shopid });
+  
+        if (!db_shopid.length) {
+          return reject({ status: 402, message: "shopid not found" });
+        }
 
-      // Validate API key
-      await validateApiKey(req);
+        // console.log(timeStamp.startTimestamp);
+  
+        const receiptlist = await db("orderinfo")
+          .join(
+            "receiptinfo",
+            "orderinfo.ordernumber",
+            "receiptinfo.ordernumber",
+          )
+          .where({ "orderinfo.shopid": shopid })
+          .andWhere("receiptinfo.ordernumber", "like", `%${seach}%`)
+          .andWhere("receiptinfo.create_at", ">=", timeStamp.startTimestamp)
+          .andWhere("receiptinfo.create_at", "<", timeStamp.endTimestamp)
+          .orderBy("receiptinfo.create_at", "desc")
+          .select(
+            "orderinfo.shopid",
+            "orderinfo.orderid",
+            "receiptinfo.receiptid",
+            "receiptinfo.ordernumber",
+            "receiptinfo.receiptnumber",
+            "receiptinfo.paymentType",
+            "receiptinfo.receiptcash",
+            "receiptinfo.receiptchange",
+            "receiptinfo.receiptdiscount",
+            "receiptinfo.totalprice",
+            "receiptinfo.urlfile",
+            "receiptinfo.create_at"
+          )
+          .orderBy("receiptinfo.create_at", "desc");
+  
+        let receiptlist_data = [];
+        receiptlist.forEach((element) => {
+          receiptlist_data.push({
 
-      if (!shopid || !checkString(shopid)) {
-        return reject({ status: 400, message: "Invalid request" });
-      }
-
-      const db_shopid = await db
-        .select("shopid")
-        .from("shopinfo")
-        .where({ shopid });
-
-      if (!db_shopid.length) {
-        return reject({ status: 402, message: "shopid not found" });
-      }
-
-      const orderlist = await db("orderinfo")
-        .join("receiptinfo", "orderinfo.orderid", "receiptinfo.orderid")
-        .where({ shopid })
-        .andWhere("orderinfo.orderispay", ">", 0)
-        .select(
-          "orderinfo.orderid",
-          "receiptinfo.receiptnumber",
-          "orderinfo.ordernumber",
-          "orderinfo.ordertotalprice"
-        );
-
-      let receiptlist_data = [];
-      orderlist.forEach((element) => {
-        receiptlist_data.push({
-          receiptnumber: element.receiptnumber,
-          ordernumber: element.ordernumber,
-          totalprice: Number(element.ordertotalprice),
+            shopid: element.shopid,
+            orderid: element.orderid,
+            receiptid: element.receiptid,
+            ordernumber: element.ordernumber,
+            receiptnumber: element.receiptnumber,
+            paymentType: Number(element.paymentType),
+            receiptcash: Number(element.receiptcash),
+            receiptchange: Number(element.receiptchange),
+            receiptdiscount: Number(element.receiptdiscount),
+            totalprice: Number(element.totalprice),
+            urlfile: element.urlfile,
+            create_at: element.create_at
+          });
         });
-      });
-
-      resolve({
-        total: receiptlist_data.length,
-        result: receiptlist_data,
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-
-  Promise.race([receiptListLogic, timeoutPromise])
-    .then((data) => {
-      res.json(data); // Send the response only once
-    })
-    .catch((error) => {
-      if (error.status) {
-        res.status(error.status).json({ message: error.message });
-      } else if (error.message === "Request timed out") {
-        res.status(402).json({ message: "Request timed out" });
-      } else {
-        handleError(error, res);
+  
+        resolve({
+          total: receiptlist_data.length,
+          result: receiptlist_data,
+        });
+      } catch (error) {
+        reject(error);
       }
     });
-};
+  
+    Promise.race([receiptListLogic, timeoutPromise])
+      .then((data) => {
+        res.json(data); // Send the response only once
+      })
+      .catch((error) => {
+        if (error.status) {
+          res.status(error.status).json({ message: error.message });
+        } else if (error.message === "Request timed out") {
+          res.status(402).json({ message: "Request timed out" });
+        } else {
+          handleError(error, res);
+        }
+      });
+  };
 
 // available slot
 exports.availableslot = (req, res) => {
