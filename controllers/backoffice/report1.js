@@ -848,7 +848,7 @@ exports.receiptorder = async (req, res) => {
         .where({ "orderdetail.orderid": orderid });
 
       const pricenet = Number(receiptRows[0].totalprice) - Number(receiptRows[0].receiptdiscount)
-
+ 
       // สร้าง object หลักสำหรับใบเสร็จ
       const mainInfo = {
         ...receiptRows[0],

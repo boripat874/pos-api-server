@@ -1424,6 +1424,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           .orderBy("receiptinfo.create_at", "desc")
           .select(
             "orderinfo.shopid",
+            "orderinfo.orderid",
             "receiptinfo.receiptid",
             "receiptinfo.ordernumber",
             "receiptinfo.receiptnumber",
