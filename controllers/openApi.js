@@ -12,7 +12,8 @@ const {
   notificationOpenAPI
 
 } = require("../modules/fun"); // ใช้บันทึก log
-const { default: th } = require("date-and-time/locale/th");
+
+const {convertTotimestamp} = require("../modules/convertTotimestamp");
 
 require("dotenv").config();
 
