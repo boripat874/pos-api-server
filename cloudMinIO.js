@@ -18,7 +18,7 @@ const localFolderPath = "storage"; // Local path to save the folder
 //=============================================================== // Initialize Minio client
 const minioClient = new Minio.Client({
   endPoint: process.env.ENDPOINT_MINIO,
-  port: process.env.PORT_MINIO,
+  port: Number(process.env.PORT_MINIO),
   useSSL: true,
   accessKey: process.env.ACCESSKEY,
   secretKey: process.env.SECRETKEY,
