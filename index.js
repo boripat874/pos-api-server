@@ -142,11 +142,11 @@ app.get("/", (req, res) => {
 const port = process.env.Port;
 
 // Create the HTTPS server manually
-const server = https.createServer(options, app);
+// const server = https.createServer(options, app);
 
-server.listen(port, () => {
-    console.log(`🚀 Secure Server is running on https://localhost:${port}`);
-});
+// server.listen(port, () => {
+//     console.log(`🚀 Secure Server is running on https://localhost:${port}`);
+// });
 
 // Optional: Error handling for Windows port conflicts
 // server.on('error', (e) => {
