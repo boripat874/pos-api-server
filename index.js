@@ -149,18 +149,20 @@ server.listen(port, () => {
 });
 
 // Optional: Error handling for Windows port conflicts
-server.on('error', (e) => {
-  if (e.code === 'EADDRINUSE') {
-    console.error(`❌ Error: Port ${port} is already in use by another service (likely IIS or Skype).`);
-  } else if (e.code === 'EACCES') {
-    console.error(`❌ Error: You must run Terminal as Administrator to use port ${port}.`);
-  } else {
-    console.error(e);
-  }
-});
-// app.listen(port, function () {
-//     console.log(`Server is running on http://localhost:${port}`);
+// server.on('error', (e) => {
+//   if (e.code === 'EADDRINUSE') {
+//     console.error(`❌ Error: Port ${port} is already in use by another service (likely IIS or Skype).`);
+//   } else if (e.code === 'EACCES') {
+//     console.error(`❌ Error: You must run Terminal as Administrator to use port ${port}.`);
+//   } else {
+//     console.error(e);
+//   }
 // });
+
+
+app.listen(port, function () {
+    console.log(`Server is running on http://localhost:${port}`);
+});
 
 
 

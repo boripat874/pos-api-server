@@ -2,6 +2,8 @@ module.exports = {
   apps : [{
     name: "POS-Server",
     script: 'index.js',
+    instances: "max",
+    autorestart: true,
     watch: true,
     env: {
       NameDatabase: "pg",
@@ -9,7 +11,7 @@ module.exports = {
       Users: "postgres",
       Password: "zoo@pos2026_pgsql",
       Database: "pos",
-      Port: 443
+      Port: 80
     },
     
   }],
