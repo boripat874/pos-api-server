@@ -1485,7 +1485,7 @@ exports.orderupdatestatus = (req, res) => {
         
       if(CheckOrderStatus.orderstatus == 3 || CheckOrderStatus.orderstatus == 4){
         return reject({
-          status: 402,
+          status: 200,
           message: `The order has been canceled.`,
         });
       }
