@@ -141,6 +141,14 @@ app.get("/", (req, res) => {
 // Start the server
 const port = process.env.Port;
 
+// ==================== Run HTTP Server ====================
+
+app.listen(port, function () {
+    console.log(`Server is running on http://localhost:${port}`);
+});
+
+// ==================== Run HTTPS Server ====================
+
 // Create the HTTPS server manually
 // const server = https.createServer(options, app);
 
@@ -160,9 +168,7 @@ const port = process.env.Port;
 // });
 
 
-app.listen(port, function () {
-    console.log(`Server is running on http://localhost:${port}`);
-});
+
 
 
 
