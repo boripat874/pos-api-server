@@ -259,7 +259,8 @@ exports.shoplist = async(req, res) => {
         })
         .limit(limit)
         .offset(offset)
-        .orderBy("create_at", "desc");
+        .orderBy("shopid", "asc")
+        .orderBy("create_at", "asc");
 
       const totalShops = await totalShopsQuery;
       const total = totalShops[0].count; // จำนวนร้านค้าทั้งหมด
