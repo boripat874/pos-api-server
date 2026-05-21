@@ -302,7 +302,8 @@ exports.dashboardOverview = (req, res) => {
                         this.where(true)
                     }
                 })
-                .orderBy("create_at", "desc");
+                .orderBy("shopid", "asc")
+                .orderBy("create_at", "asc");
 
                 // console.log("shoplist",shoplist);
 
