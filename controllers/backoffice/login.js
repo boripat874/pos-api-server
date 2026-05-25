@@ -135,25 +135,40 @@ exports.checklogin = async (req, res) => {
             .where({ uinfoid })
             .first(); // ใช้ first() เพื่อประสิทธิภาพที่ดีกว่า
 
-        if (!userExists) {
-            // ถ้า verify ผ่าน แต่หา user ไม่เจอ ก็ควร reject
-            return reject({ status: 402, message: "User associated with token not found" });
+          if (!userExists) {
+              // ถ้า verify ผ่าน แต่หา user ไม่เจอ ก็ควร reject
+              return reject({ status: 402, message: "User associated with token not found" });
+          }
+
+          let activateShop = false; // กำหนดค่าเริ่มต้นสำหรับ activateShop
+
+          // ตรวจสอบสถานะร้านค้า
+          const ugroupidOfshop = await db("shopinfo")
+            .select("activate")
+            .where({ ugroupid: userExists.ugroupid })
+            .first();
+
+            if(ugroupidOfshop) {
+              activateShop = true; // ถ้าเจอร้านค้าและมีสถานะ activate ให้ตั้งค่าเป็น true
+            }else{
+              activateShop = false; // ถ้าไม่เจอร้านค้าหรือไม่มีสถานะ activate ให้ตั้งค่าเป็น false
+            }
+
+          // ถ้า verify ผ่าน และเจอ user
+          resolve({
+            message: "User is logged in",
+            level: userExists.level,
+            shopid: userExists.shopid,
+            ugroupid: userExists.ugroupid,
+            activateShop: activateShop
+          });
+
+        } else {
+            // ถ้าไม่มี token หรือ verify ไม่ผ่าน (และเราเลือกที่จะข้าม error)
+            // อาจจะ reject หรือ resolve ด้วยสถานะอื่น ขึ้นอยู่กับว่าต้องการให้ระบบทำงานต่ออย่างไร
+            // ในที่นี้เลือก reject เพื่อบ่งบอกว่าการตรวจสอบไม่สำเร็จ
+            return reject({ status: 401, message: "Unauthorized: Invalid or missing token" });
         }
-
-        // ถ้า verify ผ่าน และเจอ user
-        resolve({
-          message: "User is logged in",
-          level: userExists.level,
-          shopid: userExists.shopid,
-          ugroupid: userExists.ugroupid
-        });
-
-      } else {
-          // ถ้าไม่มี token หรือ verify ไม่ผ่าน (และเราเลือกที่จะข้าม error)
-          // อาจจะ reject หรือ resolve ด้วยสถานะอื่น ขึ้นอยู่กับว่าต้องการให้ระบบทำงานต่ออย่างไร
-          // ในที่นี้เลือก reject เพื่อบ่งบอกว่าการตรวจสอบไม่สำเร็จ
-           return reject({ status: 401, message: "Unauthorized: Invalid or missing token" });
-      }
 
       } catch (error) {
 
