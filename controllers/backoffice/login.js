@@ -148,9 +148,12 @@ exports.checklogin = async (req, res) => {
             .where({ ugroupid: userExists.ugroupid })
             .first();
 
-            if(ugroupidOfshop) {
+            if(ugroupidOfshop || (userExists.level === "Admin")){
+              
               activateShop = true; // ถ้าเจอร้านค้าและมีสถานะ activate ให้ตั้งค่าเป็น true
+
             }else{
+
               activateShop = false; // ถ้าไม่เจอร้านค้าหรือไม่มีสถานะ activate ให้ตั้งค่าเป็น false
             }
 
