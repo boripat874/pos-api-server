@@ -203,3 +203,120 @@ exports.checklogin = async (req, res) => {
     });
 
 } 
+
+//signin ✓
+exports.signin = async(req, res) => {
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Request timed out")), timeout)
+  );
+
+  let userid_ = null;
+  
+  const signinLogic = new Promise(async (resolve, reject) => {
+    try {
+
+      await validateApiKey(req); // ตรวจสอบ API key
+
+      // await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
+
+      if(!req.body.uinfologinname){
+        reject({ status: 402, message: "Username not required" });
+      }
+
+      if(!req.body.uinfologinpass){
+          reject({ status: 402, message: "Password not required" });
+      }
+
+      const user = await db("userinfo")
+      .select("*")
+      .where({ "uinfologinname": req.body.uinfologinname })
+      .andWhere({ "uinfologinpass": req.body.uinfologinpass })
+      .andWhere({ "status": true })
+      .first();
+
+      if (!user) {
+        reject({ status: 402, message: "User not found" });
+
+        return; // เพิ่ม return เพื่อหยุดการทำงานหลังจาก reject
+      }
+
+      let activateShop = false; // กำหนดค่าเริ่มต้นสำหรับ activateShop
+
+      // ตรวจสอบสถานะร้านค้า
+      const ugroupidOfshop = await db("shopinfo")
+        .select("ugroupid","shopid")
+        .where({ ugroupid: user.ugroupid })
+        .first();
+
+        if(ugroupidOfshop || (user.level === "Admin")){
+          
+          activateShop = true; // ถ้าเจอร้านค้าและมีสถานะ activate ให้ตั้งค่าเป็น true
+
+        }else{
+
+          activateShop = false; // ถ้าไม่เจอร้านค้าหรือไม่มีสถานะ activate ให้ตั้งค่าเป็น false
+
+          resolve({
+            token: "-",
+            activateShop: activateShop,
+            message:"shop is not activate"
+          });
+
+          return; // เพิ่ม return เพื่อหยุดการทำงานหลังจาก resolve
+        }
+
+      // console.log(user);
+      const tokenId = uuid(); 
+      userid_ = user.uinfoid;
+      ugroupid_ = user.ugroupid || 'Admin';
+
+      const token = jwt.sign(
+        {
+          jti: tokenId,
+          uinfoid: userid_,
+          ugroupid: ugroupid_,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+      );
+
+      resolve({
+        token: token,
+        activateShop: activateShop,
+        message:"Sign in successfully"
+      });
+
+    } catch (error) {
+      reject(error, res);
+    }
+  });
+
+  Promise.race([signinLogic, timeoutPromise])
+    .then(async(result) => {
+
+      // เก็บ eventlog
+      await db("eventloginfo")
+      .insert({
+        id: uuid(),
+        uinfoid: userid_,
+        ipaddress: req.ip,
+        details: "เข้าสู่ระบบ"
+      })
+
+      res.status(200).json(result);
+    })
+    .catch((error) => {
+      if (error.status) {
+  
+        res.status(error.status).json({ message: error.message });
+
+      } else if (error.message === "Request timed out") {
+
+        res.status(402).json({ message: "Request timed out" });
+
+      } else {
+        handleError(error, res);
+      }
+    });
+};

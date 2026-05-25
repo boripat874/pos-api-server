@@ -19,7 +19,7 @@ router.get("/backoffice/headerdatashopslist",headerdata.shopslist);
 
 // login
 router.get("/backoffice/checklogin",login.checklogin);
-
+router.post("/backoffice/signin",login.signin);
 
 // shopinfo
 router.get("/backoffice/groupshoplist",shopinfo.groupshoplist);
@@ -48,7 +48,7 @@ router.post("/backoffice/productcategorydelete",productinfo.productcategorydelet
 
 // userinfo
 router.get("/backoffice/usershoplist",userinfo.shoplist);
-router.post("/backoffice/signin",userinfo.signin);
+// router.post("/backoffice/signin",userinfo.signin);
 router.get("/backoffice/signout",userinfo.signout);
 router.get("/backoffice/userinfo",userinfo.userinfo);
 router.post("/backoffice/confirmaction",userinfo.confirmaction);
