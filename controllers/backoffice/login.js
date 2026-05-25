@@ -144,7 +144,7 @@ exports.checklogin = async (req, res) => {
 
           // ตรวจสอบสถานะร้านค้า
           const ugroupidOfshop = await db("shopinfo")
-            .select("activate")
+            .select("shopid")
             .where({ ugroupid: userExists.ugroupid })
             .first();
 
