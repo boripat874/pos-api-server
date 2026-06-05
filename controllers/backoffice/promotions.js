@@ -396,7 +396,7 @@ exports.promotionslist = (req, res) => {
         })
         .limit(limit)
         .offset(offset)
-        .orderBy("create_at", "desc");
+        .orderBy("update_at", "desc");
 
       // console.log("promotions >> ", promotions);
 
