@@ -121,6 +121,12 @@ async function checkpromotion(Datestart,Dateend) {
     }
     endDate.setDate(endDate.getDate()+1);
     // endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
+
+    console.log("calculatedStatus:", calculatedStatus);
+
+    console.log(today.getTime());
+    console.log(startDate.getTime());
+    console.log(endDate.getTime());
  
     // เปรียบเทียบเฉพาะวันที่
     if (today.getTime() < startDate.getTime()) {
