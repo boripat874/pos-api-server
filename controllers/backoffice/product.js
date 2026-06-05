@@ -88,7 +88,7 @@ async function deleteUploadedFile(filePath) {
 }
 
 // ฟังก์ชันสําหรับตรวจสอบวันสิ้นสุดโปรโมชั่น
-async function checkpromotion(Datestart, Dateend) {
+function checkpromotion(Datestart, Dateend) {
   let calculatedStatus = "ใช้งาน"; // ค่าเริ่มต้น
   
   // 1. ตั้งค่าวันนี้ (เวลาไทย เที่ยงคืนตรงเป๊ะ)
@@ -117,11 +117,11 @@ async function checkpromotion(Datestart, Dateend) {
     endDate.setHours(0, 0, 0, 0);
     endDate.setDate(endDate.getDate() + 1);
 
-    console.log("--- Debug Time ---");
-    console.log("Today:     ", today.toLocaleString("th-TH"));
-    console.log("Start Date:", startDate.toLocaleString("th-TH"));
-    console.log("End Date:  ", endDate.toLocaleString("th-TH"));
-    console.log("------------------");
+    // console.log("--- Debug Time ---");
+    // console.log("Today:     ", today.toLocaleString("th-TH"));
+    // console.log("Start Date:", startDate.toLocaleString("th-TH"));
+    // console.log("End Date:  ", endDate.toLocaleString("th-TH"));
+    // console.log("------------------");
 
     // 4. เปรียบเทียบเงื่อนไข
     if (today.getTime() < startDate.getTime()) {
@@ -136,7 +136,7 @@ async function checkpromotion(Datestart, Dateend) {
       return false; 
     }
 
-    console.log("Status:", calculatedStatus);
+    // console.log("Status:", calculatedStatus);
     return true; // อยู่ในช่วงโปรโมชัน
 
   } catch (dateError) {
