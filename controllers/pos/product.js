@@ -476,7 +476,7 @@ exports.productdetail = (req, res) => {
       const promotionslist = promoinfo
         .filter(
           element => (element.productid === productid || element.productid === "" || element.productid === null) && 
-          (element.pdpromotionsstatus === "ใช้งาน") && 
+          (element.pdpromotionsstatus === true) && 
           checkpromotion(element.datepromostart,element.datepromoend)
         )
         .map((element) => (

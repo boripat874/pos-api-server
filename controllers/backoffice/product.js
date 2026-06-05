@@ -108,6 +108,8 @@ async function checkpromotion(Datestart,Dateend) {
       });
     }
 
+    startDate.setDate(startDate.getDate()); // ตั้งเวลาของวันเริ่มต้นเป็น 00:00:00.000
+
     endDate = new Date(Dateend); // แปลง input เป็น Date object
     if (isNaN(endDate.getTime())) {
       // ตรวจสอบว่าแปลงเป็นวันที่ที่ถูกต้องหรือไม่
@@ -116,6 +118,7 @@ async function checkpromotion(Datestart,Dateend) {
         message: "Invalid request: Invalid promotionend date format",
       });
     }
+    endDate.setDate(endDate.getDate()+1);
     // endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
  
     // เปรียบเทียบเฉพาะวันที่
@@ -433,6 +436,7 @@ exports.productdetail = (req, res) => {
       const promotionslist = promoinfo
         .filter(element => 
           (element.productid === productid || element.productid === "" || element.productid === null) &&
+          (element.pdpromotionsstatus === true) && 
           checkpromotion(element.datepromostart,element.datepromoend) 
         )
         .map((element) => (
