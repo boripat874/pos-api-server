@@ -117,7 +117,7 @@ async function checkpromotion(Datestart,Dateend) {
       });
     }
     // endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
-
+ 
     // เปรียบเทียบเฉพาะวันที่
     if (today.getTime() < startDate.getTime()) {
 
