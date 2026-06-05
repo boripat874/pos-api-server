@@ -466,7 +466,7 @@ exports.promotionslist = (req, res) => {
         const product = await pdpromoidlist(promotion.promoid);
 
         return {
-          datepromotion: date.format(new Date(promotion.create_at*1000), 'YYYY-MM-DD HH:mm'),
+          datepromotion: date.format(new Date(promotion.update_at*1000), 'YYYY-MM-DD HH:mm'),
           promoid: promotion.promoid,
           shopid: promotion.shopid,
           promoname: promotion.promoname,
