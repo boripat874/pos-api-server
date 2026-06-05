@@ -135,9 +135,11 @@ async function checkpromotion(Datestart,Dateend) {
 
       return false; 
 
+    }else{
+
+      return true; // ถ้าไม่เกินเวลา
     }
 
-    return true; // ถ้าไม่เกินเวลา
     
     // return calculatedStatus; // ถ้าไม่เกินเวลา
   } catch (dateError) {
