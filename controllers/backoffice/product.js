@@ -125,13 +125,13 @@ function checkpromotion(Datestart, Dateend) {
 
     // 4. เปรียบเทียบเงื่อนไข
     if (today.getTime() < startDate.getTime()) {
-      calculatedStatus = "ยังไม่เริ่มใช้งาน";
+      // calculatedStatus = "ยังไม่เริ่มใช้งาน";
       console.log("Status:", calculatedStatus);
       return false; 
     } 
     
     if (today.getTime() >= endDate.getTime()) {
-      calculatedStatus = "หมดเวลา";
+      // calculatedStatus = "หมดเวลา";
       console.log("Status:", calculatedStatus);
       return false; 
     }

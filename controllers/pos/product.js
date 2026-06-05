@@ -79,60 +79,63 @@ async function deleteUploadedFile(filePath) {
 }
 
 // ฟังก์ชันสําหรับตรวจสอบวันสิ้นสุดโปรโมชั่น
-async function checkpromotion(Datestart,Dateend) {
+function checkpromotion(Datestart, Dateend) {
   let calculatedStatus = "ใช้งาน"; // ค่าเริ่มต้น
+  
+  // 1. ตั้งค่าวันนี้ (เวลาไทย เที่ยงคืนตรงเป๊ะ)
   const today = new Date();
-  // today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00.000 ของวันปัจจุบัน
-  today.setHours(today.getHours()+7); // ปรับเวลาเป็น UTC+7
+  today.setHours(0, 0, 0, 0); // เที่ยงคืนระบบเครื่องคอมพิวเตอร์ (ถ้า Server อยู่ไทยจะเป็นเวลาไทยอยู่แล้ว)
 
   let startDate;
   let endDate;
 
   try {
-
-    startDate = new Date(Datestart); // แปลง input เป็น Date object
+    // 2. จัดการวันเริ่มต้น
+    startDate = new Date(Datestart);
     if (isNaN(startDate.getTime())) {
-      // ตรวจสอบว่าแปลงเป็นวันที่ที่ถูกต้องหรือไม่
-      return reject({
-        status: 400,
-        message: "Invalid request: Invalid promotionstart date format",
-      });
+      throw { status: 400, message: "Invalid promotionstart date format" };
     }
+    // รีเซ็ตให้เป็นเที่ยงคืนตรง เพื่อเอาไว้เทียบเฉพาะ "วันที่"
+    startDate.setHours(0, 0, 0, 0); 
 
-    endDate = new Date(Dateend); // แปลง input เป็น Date object
+    // 3. จัดการวันสิ้นสุด
+    endDate = new Date(Dateend);
     if (isNaN(endDate.getTime())) {
-      // ตรวจสอบว่าแปลงเป็นวันที่ที่ถูกต้องหรือไม่
-      return reject({
-        status: 400,
-        message: "Invalid request: Invalid promotionend date format",
-      });
+      throw { status: 400, message: "Invalid promotionend date format" };
     }
-    // endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
+    // รีเซ็ตเป็นเที่ยงคืนตรง แล้วบวกเพิ่ม 1 วัน 
+    // (เพื่อให้โปรโมชันครอบคลุมถึงเวลา 23:59:59 ของวันสิ้นสุดพอดี)
+    endDate.setHours(0, 0, 0, 0);
+    endDate.setDate(endDate.getDate() + 1);
 
-    // เปรียบเทียบเฉพาะวันที่
+    // console.log("--- Debug Time ---");
+    // console.log("Today:     ", today.toLocaleString("th-TH"));
+    // console.log("Start Date:", startDate.toLocaleString("th-TH"));
+    // console.log("End Date:  ", endDate.toLocaleString("th-TH"));
+    // console.log("------------------");
+
+    // 4. เปรียบเทียบเงื่อนไข
     if (today.getTime() < startDate.getTime()) {
-
-      calculatedStatus = "ยังไม่เริ่มใช้งาน"; // ถ้าวันปัจจุบันยังไม่ถึงวันเริ่มต้น
-
-      return false; // ถ้าวันปัจจุบันยังไม่ถึงวันเริ่มต้น
-
-    }else if (today.getTime() > endDate.getTime()) {
-
-      calculatedStatus = "หมดเวลา"; // ถ้าวันปัจจุบันเลยวันสิ้นสุดไปแล้ว
-
+      // calculatedStatus = "ยังไม่เริ่มใช้งาน";
+      console.log("Status:", calculatedStatus);
       return false; 
-
+    } 
+    
+    if (today.getTime() >= endDate.getTime()) {
+      // calculatedStatus = "หมดเวลา";
+      console.log("Status:", calculatedStatus);
+      return false; 
     }
 
-    return true; // ถ้าไม่เกินเวลา
-    
-    // return calculatedStatus; // ถ้าไม่เกินเวลา
+    // console.log("Status:", calculatedStatus);
+    return true; // อยู่ในช่วงโปรโมชัน
+
   } catch (dateError) {
-    // console.error("Error parsing promotionend date:", dateError);
-    return reject({
-      status: 400,
-      message: "Invalid request: Error processing promotionend date",
-    });
+    // เปลี่ยนจาก reject เป็น throw หรือส่ง object กลับไป (เพราะใช้ async/await)
+    return {
+      status: dateError.status || 400,
+      message: dateError.message || "Error processing date",
+    };
   }
 }
 
@@ -474,10 +477,10 @@ exports.productdetail = (req, res) => {
 
         // console.log("promoinfo",promoinfo);
       const promotionslist = promoinfo
-        .filter(
-          element => (element.productid === productid || element.productid === "" || element.productid === null) && 
-          (element.pdpromotionsstatus === true) && 
-          checkpromotion(element.datepromostart,element.datepromoend)
+        .filter(element =>
+           (element.productid === productid || element.productid === "" || element.productid === null) && 
+          (element.pdpromotionsstatus === true || element.pdpromotionsstatus === null) && 
+          checkpromotion(element.datepromostart,element.datepromoend) 
         )
         .map((element) => (
 
