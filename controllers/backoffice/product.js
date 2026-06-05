@@ -89,6 +89,7 @@ async function deleteUploadedFile(filePath) {
 
 // ฟังก์ชันสําหรับตรวจสอบวันสิ้นสุดโปรโมชั่น
 async function checkpromotion(Datestart,Dateend) {
+
   let calculatedStatus = "ใช้งาน"; // ค่าเริ่มต้น
   const today = new Date();
   // today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00.000 ของวันปัจจุบัน
@@ -128,7 +129,7 @@ async function checkpromotion(Datestart,Dateend) {
 
       return false; // ถ้าวันปัจจุบันยังไม่ถึงวันเริ่มต้น
 
-    }else if (today.getTime() > endDate.getTime()) {
+    }else if (today.getTime() >= endDate.getTime()) {
 
       calculatedStatus = "หมดเวลา"; // ถ้าวันปัจจุบันเลยวันสิ้นสุดไปแล้ว
 
@@ -436,7 +437,7 @@ exports.productdetail = (req, res) => {
       const promotionslist = promoinfo
         .filter(element => 
           (element.productid === productid || element.productid === "" || element.productid === null) &&
-          (element.pdpromotionsstatus === true) && 
+          (element.pdpromotionsstatus === true || element.pdpromotionsstatus === null) && 
           checkpromotion(element.datepromostart,element.datepromoend) 
         )
         .map((element) => (

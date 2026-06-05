@@ -25,5 +25,8 @@ if (today.getTime() < startDate.getTime()) {
 }else if (today.getTime() >= endDate.getTime()) {
     calculatedStatus = "หมดเวลา"; // ถ้าวันปัจจุบันเลยวันสิ้นสุดไปแล้ว
 }
+console.log("calculatedStatus:", calculatedStatus);
 
-console.log(calculatedStatus);
+console.log(today.getTime());
+console.log(startDate.getTime());
+console.log(endDate.getTime());
