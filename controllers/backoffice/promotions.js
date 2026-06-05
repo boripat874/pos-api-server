@@ -416,10 +416,28 @@ exports.promotionslist = (req, res) => {
         // 3. Determine Status based on Date Comparison
         let calculatedStatus = "ใช้งาน"; // ค่าเริ่มต้น
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00.000 ของวันปัจจุบัน
+        // today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00.000 ของวันปัจจุบัน
+        today.setHours(today.getHours()+7); // ปรับเวลาเป็น UTC+7
 
+        let startDate;
         let endDate;
         try {
+
+          startDate = new Date(promotion.datepromostart); // แปลง input เป็น Date object
+          if (isNaN(startDate.getTime())) {
+            // ตรวจสอบว่าแปลงเป็นวันที่ที่ถูกต้องหรือไม่
+            return reject({
+              status: 400,
+              message: "Invalid request: Invalid promotionstart date format",
+            });
+          }
+          // startDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันเริ่มต้นเป็น 00:00:00.000
+
+          // เปรียบเทียบเฉพาะวันที่
+          if (today.getTime() < startDate.getTime()) {
+            calculatedStatus = "ยังไม่เริ่มใช้งาน"; // ถ้าวันปัจจุบันยังไม่ถึงวันเริ่มต้น
+          }
+
           endDate = new Date(promotion.datepromoend); // แปลง input เป็น Date object
           if (isNaN(endDate.getTime())) {
             // ตรวจสอบว่าแปลงเป็นวันที่ที่ถูกต้องหรือไม่
@@ -428,12 +446,15 @@ exports.promotionslist = (req, res) => {
               message: "Invalid request: Invalid promotionend date format",
             });
           }
-          endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
+
+          // endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
+          endDate.setDate(endDate.getDate() + 1);
 
           // เปรียบเทียบเฉพาะวันที่
           if (today.getTime() > endDate.getTime()) {
             calculatedStatus = "หมดเวลา"; // ถ้าวันปัจจุบันเลยวันสิ้นสุดไปแล้ว
           }
+
         } catch (dateError) {
           // console.error("Error parsing promotionend date:", dateError);
           return reject({

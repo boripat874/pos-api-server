@@ -79,14 +79,27 @@ async function deleteUploadedFile(filePath) {
 }
 
 // ฟังก์ชันสําหรับตรวจสอบวันสิ้นสุดโปรโมชั่น
-async function checkpromotion(params) {
+async function checkpromotion(Datestart,Dateend) {
   let calculatedStatus = "ใช้งาน"; // ค่าเริ่มต้น
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00.000 ของวันปัจจุบัน
+  // today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00.000 ของวันปัจจุบัน
+  today.setHours(today.getHours()+7); // ปรับเวลาเป็น UTC+7
 
+  let startDate;
   let endDate;
+
   try {
-    endDate = new Date(params); // แปลง input เป็น Date object
+
+    startDate = new Date(Datestart); // แปลง input เป็น Date object
+    if (isNaN(startDate.getTime())) {
+      // ตรวจสอบว่าแปลงเป็นวันที่ที่ถูกต้องหรือไม่
+      return reject({
+        status: 400,
+        message: "Invalid request: Invalid promotionstart date format",
+      });
+    }
+
+    endDate = new Date(Dateend); // แปลง input เป็น Date object
     if (isNaN(endDate.getTime())) {
       // ตรวจสอบว่าแปลงเป็นวันที่ที่ถูกต้องหรือไม่
       return reject({
@@ -94,15 +107,25 @@ async function checkpromotion(params) {
         message: "Invalid request: Invalid promotionend date format",
       });
     }
-    endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
+    // endDate.setHours(0, 0, 0, 0); // ตั้งเวลาของวันสิ้นสุดเป็น 00:00:00.000
 
     // เปรียบเทียบเฉพาะวันที่
-    if (today.getTime() > endDate.getTime()) {
+    if (today.getTime() < startDate.getTime()) {
+
+      calculatedStatus = "ยังไม่เริ่มใช้งาน"; // ถ้าวันปัจจุบันยังไม่ถึงวันเริ่มต้น
+
+      return false; // ถ้าวันปัจจุบันยังไม่ถึงวันเริ่มต้น
+
+    }else if (today.getTime() > endDate.getTime()) {
+
       calculatedStatus = "หมดเวลา"; // ถ้าวันปัจจุบันเลยวันสิ้นสุดไปแล้ว
-      return false; //
+
+      return false; 
+
     }
 
     return true; // ถ้าไม่เกินเวลา
+    
     // return calculatedStatus; // ถ้าไม่เกินเวลา
   } catch (dateError) {
     // console.error("Error parsing promotionend date:", dateError);
@@ -451,7 +474,11 @@ exports.productdetail = (req, res) => {
 
         // console.log("promoinfo",promoinfo);
       const promotionslist = promoinfo
-        .filter(element => element.productid === productid || element.productid === "" || element.productid === null && checkpromotion(element.datepromoend))
+        .filter(
+          element => (element.productid === productid || element.productid === "" || element.productid === null) && 
+          (element.pdpromotionsstatus === "ใช้งาน") && 
+          checkpromotion(element.datepromostart,element.datepromoend)
+        )
         .map((element) => (
 
           {
