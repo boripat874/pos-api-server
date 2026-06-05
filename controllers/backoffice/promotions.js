@@ -417,7 +417,7 @@ exports.promotionslist = (req, res) => {
         let calculatedStatus = "ใช้งาน"; // ค่าเริ่มต้น
         const today = new Date();
         // today.setHours(0, 0, 0, 0); // ตั้งเวลาเป็น 00:00:00.000 ของวันปัจจุบัน
-        today.setHours(today.getHours()+7); // ปรับเวลาเป็น UTC+7
+        today.setHours(today.getHours()); // ปรับเวลาเป็น UTC+7
 
         let startDate;
         let endDate;
@@ -651,6 +651,7 @@ exports.promotionUpdate = async (req, res) => {
         datepromoend: promotionend,
         promoremark: promotiondetail,
         initial : initial,
+        update_at: Math.floor(Date.now() / 1000),
       };
 
       await db("pdpromotions")

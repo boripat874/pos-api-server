@@ -84,7 +84,8 @@ function checkpromotion(Datestart, Dateend) {
   
   // 1. ตั้งค่าวันนี้ (เวลาไทย เที่ยงคืนตรงเป๊ะ)
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // เที่ยงคืนระบบเครื่องคอมพิวเตอร์ (ถ้า Server อยู่ไทยจะเป็นเวลาไทยอยู่แล้ว)
+  // today.setHours(0, 0, 0, 0); // เที่ยงคืนระบบเครื่องคอมพิวเตอร์ (ถ้า Server อยู่ไทยจะเป็นเวลาไทยอยู่แล้ว)
+  today.setHours(today.getHours()+7); // ปรับเวลาเป็น UTC+7 เพื่อให้เที่ยงคืนตรงกับเวลาไทย
 
   let startDate;
   let endDate;
