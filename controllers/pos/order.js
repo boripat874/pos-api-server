@@ -292,7 +292,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
 
         const db_transactionid = await db
           .select("transactionid")
-          .from("shopinfo")
+          .from("orderinfo")
           .where({ transactionid: transactionid_ });
 
         if (db_transactionid.length) {
