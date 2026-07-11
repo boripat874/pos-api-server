@@ -217,11 +217,16 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
       // orderpricenet,
       productinorder,
       pickupnow,
-      ordernumber
+      ordernumber,
+      terminalid,
+      transactionid
     } = req.body;
 
     var starttime = req.body.starttime;
     var endtime = req.body.endtime;
+
+    const terminalid_ = terminalid ? terminalid :   null;
+    const transactionid_ = transactionid ? transactionid :   null;
 
     const orderCreateLogic = new Promise(async (resolve, reject) => {
 
@@ -247,6 +252,14 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
         ) {
           return reject({ status: 400, message: "Invalid request" });
         }
+
+        // if(!terminalid_){
+        //   return reject({ status: 402, message: "terminalid not found" });
+        // }
+
+        // if(!transactionid_){
+        //   return reject({ status: 402, message: "transactionid not found" });
+        // }
   
         if (typeof ordertimestamp !== "number") {
           return reject({ status: 402, message: "ordertimestamp must be a number" });
@@ -277,13 +290,22 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           return reject({ status: 402, message: "pickupnow or (starttime , endtime) not found" });
         }
 
+        const db_transactionid = await db
+          .select("transactionid")
+          .from("shopinfo")
+          .Where({ transactionid: transactionid_ });
+
+        if (db_transactionid.length) {
+          return reject({ status: 402, message: "You have already completed this transaction." });
+        }
+
         const db_shopid = await db
           .select("shopid")
           .from("shopinfo")
           .where({ shopid });
   
         if (!db_shopid.length) {
-          return reject({ status: 404, message: "shopid not found" });
+          return reject({ status: 402, message: "shopid not found" });
         }
   
         const db_ordernumber = await db
@@ -441,7 +463,8 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           starttime,
           endtime,
           ordertype: 1,
-          
+          terminalid: terminalid_,
+          transactionid: transactionid_,
         });
   
         await db("orderdetail").insert(orderdetail_data);
