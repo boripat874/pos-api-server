@@ -73,7 +73,8 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
             shopid: element.shopid,
             ordernumber: element.ordernumber,
             ordertype: Number(element.ordertype),
-            ordertimestamp: Number(element.ordertimestamp),
+            ordertimestamp: Math.floor(Number(element.ordertimestamp)),
+            ordertimestamp_update: Math.floor(Number(element.update_at)),
             orderstatus: Number(element.orderstatus),
             ordertotalprice: Number(element.ordertotalprice),
             pickupnow: Number(element.pickupnow),
@@ -150,7 +151,8 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
             shopid: element.shopid,
             ordernumber: element.ordernumber,
             ordertype: Number(element.ordertype),
-            ordertimestamp: element.ordertimestamp,
+            ordertimestamp: Math.floor(Number(element.ordertimestamp)),
+            ordertimestamp_update: Math.floor(Number(element.update_at)),
             orderstatus: Number(element.orderstatus),
             ordertotalprice: Number(element.ordertotalprice),
             ordertotaldiscount: Number(element.ordertotaldiscount),
@@ -1803,7 +1805,6 @@ exports.orderdelete = (req, res) => {
       }else{
         req.body.shopid = db_ordernumber[0].shopid;
       }
-
       
       await db("orderdetail")
         .select(

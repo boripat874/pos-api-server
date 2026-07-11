@@ -1193,6 +1193,9 @@ paths:
                         ordertimestamp:
                           type: number
                           description: เวลา Order
+                        ordertimestamp_update:
+                          type: number
+                          description: เวลา Update Order
                         orderstatus:
                           type: string
                           description: สถานะ Order
@@ -1218,6 +1221,7 @@ paths:
                       ordernumber: "ON250401",
                       ordertype: 1,
                       ordertimestamp: 1737973730,
+                      ordertimestamp_update: 1737973730,
                       orderstatus: 1,
                       ordertotalprice: 2000,
                       pickupnow: 1,
@@ -1312,6 +1316,9 @@ paths:
                   ordertimestamp:
                     type: number
                     description: เวลา Order
+                  ordertimestamp_update:
+                    type: number
+                    description: เวลา Update Order
                   orderstatus:
                     type: string
                     description: สถานะ Order
@@ -1359,6 +1366,7 @@ paths:
                 ordernumber: "ON250401"
                 ordertype: 1
                 ordertimestamp: 1737973730
+                ordertimestamp_update: 1737973730
                 orderstatus: 1
                 ordertotalprice: 3000
                 ordertotaldiscount: 100
