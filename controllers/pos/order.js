@@ -64,6 +64,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           .where({ shopid })
           .andWhere("ordertimestamp", ">=", timeStamp.startTimestamp)
           .andWhere("ordertimestamp", "<", timeStamp.endTimestamp)
+          .andWhere("status", "=", true)
           .orderBy("ordertimestamp", "desc");
   
         let orderlist_data = [];
@@ -260,6 +261,15 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
         if(!transactionid_){
           return reject({ status: 402, message: "transactionid not found" });
         }
+
+        const db_transactionid = await db
+          .select("transactionid")
+          .from("orderinfo")
+          .where({ transactionid: transactionid_ });
+
+        if (db_transactionid.length) {
+          return reject({ status: 402, message: "You have already completed this transaction." });
+        }
   
         if (typeof ordertimestamp !== "number") {
           return reject({ status: 402, message: "ordertimestamp must be a number" });
@@ -288,15 +298,6 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           }
         }else if(pickupnow === undefined && !starttime && !endtime){
           return reject({ status: 402, message: "pickupnow or (starttime , endtime) not found" });
-        }
-
-        const db_transactionid = await db
-          .select("transactionid")
-          .from("orderinfo")
-          .where({ transactionid: transactionid_ });
-
-        if (db_transactionid.length) {
-          return reject({ status: 402, message: "You have already completed this transaction." });
         }
 
         const db_shopid = await db
@@ -848,13 +849,18 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
       ordertype,
       ordernumber,
       orderstatus,
-      orderispay
+      orderispay,
+      terminalid
+      // transactionid
     } = req.body;
 
     let countQTY = 0;
 
     var starttime = req.body.starttime; 
     var endtime = req.body.endtime;
+
+    const terminalid_ = terminalid ? terminalid :   null;
+    // const transactionid_ = transactionid ? transactionid :   null;
 
     const orderCreateLogic = new Promise(async (resolve, reject) => {
       try {
@@ -876,6 +882,23 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
         ) {
           return reject({ status: 400, message: "Invalid request" });
         }
+
+        if(!terminalid_){
+          return reject({ status: 402, message: "terminalid not found" });
+        }
+
+        // if(!transactionid_){
+        //   return reject({ status: 402, message: "transactionid not found" });
+        // }
+
+        // const db_transactionid = await db
+        //   .select("transactionid")
+        //   .from("orderinfo")
+        //   .where({ transactionid: transactionid_ });
+
+        // if (db_transactionid.length) {
+        //   return reject({ status: 402, message: "You have already completed this transaction." });
+        // }
 
         const db_ordernumber = await db
         .select("ordernumber")
@@ -1156,6 +1179,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           endtime,
           orderstatus: orderstatus || 0,
           orderispay: orderispay || 0,
+          terminalid: terminalid_,
         });
 
         await db("orderdetail").insert(orderdetail_data);
@@ -1195,7 +1219,9 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
       setTimeout(() => reject(new Error("Request timed out")), timeout)
     );
   
-    const { ordernumber, orderstatus ,orderispay} = req.body;
+    const { ordernumber, orderstatus ,orderispay, terminalid} = req.body;
+
+    const terminalid_ = terminalid ? terminalid :   null;
     
     const orderUpdateStatusLogic = new Promise(async (resolve, reject) => {
       try { //NOSONAR
@@ -1208,6 +1234,10 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
         
         if (!checkString(ordernumber)) {
           return reject({ status: 400, message: "Invalid request" });
+        }
+
+        if(!terminalid_){
+          return reject({ status: 402, message: "terminalid not found" });
         }
 
         if(!ordernumber){
@@ -1302,7 +1332,8 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           .where({ ordernumber })
           .update({ 
             orderstatus: Number(orderstatus), 
-            orderispay: Number(orderispay) 
+            orderispay: Number(orderispay),
+            terminalid: terminalid_
           });
   
         resolve({
@@ -1802,7 +1833,10 @@ exports.orderdelete = (req, res) => {
 
   const orderDeleteLogic = new Promise(async (resolve, reject) => {
     try {
-      const { ordernumber } = req.body;
+
+      const { ordernumber, terminalid} = req.body;
+
+      const terminalid_ = terminalid ? terminalid :   null;
 
       // Validate API key
       await validateApiKey(req);
@@ -1812,6 +1846,10 @@ exports.orderdelete = (req, res) => {
 
       if (!ordernumber || !checkString(ordernumber)) {
         return reject({ status: 400, message: "Invalid request" });
+      }
+
+      if(!terminalid_){
+        return reject({ status: 402, message: "terminalid not found" });
       }
 
       const db_ordernumber = await db
@@ -1851,7 +1889,14 @@ exports.orderdelete = (req, res) => {
         }
       );
 
-      await db("orderinfo").where({ ordernumber }).delete();
+      // await db("orderinfo").where({ ordernumber }).delete();
+      await db("orderinfo")
+          .where({ ordernumber })
+          .update({ 
+            status: false, 
+            terminalid: terminalid_
+          });
+  
 
       await db("receiptinfo").select("receiptnumber").where({ ordernumber }).first()
       .then(async (data) => {

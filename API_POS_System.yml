@@ -1627,6 +1627,7 @@ paths:
               required:
                 - shopid
                 - ordernumber
+                - terminalid
                 - ordertimestamp
                 - ordertotalprice
                 - ordertotaldiscount
@@ -1639,6 +1640,7 @@ paths:
             example:
               shopid: "S250401"
               ordernumber: "ON250403"
+              terminalid: "T250001"
               ordertimestamp: 1751252586
               ordertotalprice: 3000
               ordertotaldiscount: 100
@@ -1725,10 +1727,14 @@ paths:
                   description: 0 = ยังไม่ได้ชําระ , 1 = ชําระแล้ว
               required:
                 - ordernumber
+                - terminalid
+                - ordertimestamp
+                - ordertotalprice
                 - orderstatus
                 - orderispay
             example:
               ordernumber: "ON250401"
+              terminalid: "T250001"
               orderstatus: 1
               orderispay: 0
       responses:
@@ -1799,8 +1805,10 @@ paths:
                   description: เลข Order
               required:
                 - ordernumber
+                - terminalid
             example:
               ordernumber: "ON250401"
+              terminalid: "T250001"
       responses:
         "200":
           description: OK
