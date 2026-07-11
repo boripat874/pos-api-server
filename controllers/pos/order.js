@@ -253,13 +253,13 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           return reject({ status: 400, message: "Invalid request" });
         }
 
-        // if(!terminalid_){
-        //   return reject({ status: 402, message: "terminalid not found" });
-        // }
+        if(!terminalid_){
+          return reject({ status: 402, message: "terminalid not found" });
+        }
 
-        // if(!transactionid_){
-        //   return reject({ status: 402, message: "transactionid not found" });
-        // }
+        if(!transactionid_){
+          return reject({ status: 402, message: "transactionid not found" });
+        }
   
         if (typeof ordertimestamp !== "number") {
           return reject({ status: 402, message: "ordertimestamp must be a number" });

@@ -1431,6 +1431,12 @@ paths:
                 ordernumber:
                   type: string
                   description: เลข Order
+                terminalid:
+                  type: string
+                  description: เลข Terminal
+                transactionid:
+                  type: string
+                  description: เลข Transaction
                 ordertimestamp:
                   type: number
                   description: เวลา Order
@@ -1478,6 +1484,8 @@ paths:
               required:
                 - shopid
                 - ordernumber
+                - terminalid
+                - transactionid
                 - ordertimestamp
                 - ordertotalprice
                 - ordertotaldiscount
@@ -1486,11 +1494,13 @@ paths:
                 - endtime
                 - productinorder
             example:
-              shopid: "S250401"
+              shopid: "POS_SHOP_001"
               ordernumber: "ON250403"
+              terminalid: "T250001"
+              transactionid: "TX250403001"
               ordertimestamp: 1751252586
-              ordertotalprice: 3000
-              ordertotaldiscount: 100
+              ordertotalprice: 100
+              ordertotaldiscount: 0
               pickupnow: 1
               starttime: "08:00"
               endtime: "08:30"
