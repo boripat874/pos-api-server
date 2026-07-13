@@ -470,7 +470,8 @@ exports.productdetail = (req, res) => {
           "promoinfo.datepromoend as datepromoend",
           "promoinfo.discount as discount",
           "promoinfo.initial as initial",
-          "pdpromotions.productid as productid"
+          "pdpromotions.productid as productid",
+          "pdpromotions.status as pdpromotionsstatus"
         )
         .leftJoin("pdpromotions", "pdpromotions.promoid", "promoinfo.promoid")
         .whereNot({ "promoinfo.status": "ยกเลิก" })
