@@ -456,7 +456,7 @@ exports.productdetail = (req, res) => {
           
           shopid = result[0].shopid;
         })
-
+ 
       const productdetail = await db("productinfo")
         .select("*")
         .where({ productid });
@@ -474,7 +474,7 @@ exports.productdetail = (req, res) => {
         )
         .leftJoin("pdpromotions", "pdpromotions.promoid", "promoinfo.promoid")
         .whereNot({ "promoinfo.status": "ยกเลิก" })
-        .where({ "shopid": shopid});
+        .where({ "shopid": shopid}); 
 
         // console.log("promoinfo",promoinfo);
       const promotionslist = promoinfo
@@ -494,6 +494,7 @@ exports.productdetail = (req, res) => {
             discount: element.discount,
             initial: element.initial,
             productid: element.productid,
+            pdpromotionsstatus: element.pdpromotionsstatus,
           }
 
         ));
