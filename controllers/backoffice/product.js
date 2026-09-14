@@ -554,31 +554,25 @@ exports.productcreate = [
           // status: "ACTIVE"
         }
 
-        const SmartZoo = await axios.post(`${config.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,payloadZoo,
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL_ZOO}/foods`,
+          payloadZoo,
           {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-KEY': `${config.NEXT_PUBLIC_API_ZOO_KEY}`,
-          },
-        })
-
-        SmartZoo.then((response) => {
-
-          if (response.status === 200) {
-
-            console.log("SmartZoo response success : ", response.data);
-          }else {
-            console.log("SmartZoo status  : ", response.status);
-            console.log("SmartZoo error : ", response.data);
-
-            return reject({ status: 402, message: "SmartZoo error" });
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-KEY': `${process.env.NEXT_PUBLIC_API_ZOO_KEY}`,
+            },
           }
-        }).catch((error) => {
+        );
 
-          console.error("SmartZoo error : ", error.response ? error.response.data : error.message);
+        if (response.status === 200) {
+          console.log("SmartZoo response success : ", response.data);
+        } else {
+          console.log("SmartZoo status  : ", response.status);
+          console.log("SmartZoo error : ", response.data);
+
           return reject({ status: 402, message: "SmartZoo error" });
-
-        });
+        }
 
         if (
             !productid ||
@@ -812,30 +806,25 @@ exports.productupdate = [
           // status: "ACTIVE"
         }
 
-        const SmartZoo = await axios.put(`${config.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,payloadZoo,
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,
+          payloadZoo,
           {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-KEY': `${config.NEXT_PUBLIC_API_ZOO_KEY}`,
-          },
-        })
-
-        SmartZoo.then((response) => {
-
-          if (response.status === 200) {
-
-            console.log("SmartZoo response success : ", response.data);
-          }else {
-            console.log("SmartZoo status  : ", response.status);
-            console.log("SmartZoo error : ", response.data);
-
-            return reject({ status: 402, message: "SmartZoo error" });
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-KEY': `${process.env.NEXT_PUBLIC_API_ZOO_KEY}`,
+            },
           }
-        }).catch((error) => {
+        );
 
-          console.error("SmartZoo error : ", error.response ? error.response.data : error.message);
+        if (response.status === 200) {
+          console.log("SmartZoo response success : ", response.data);
+        } else {
+          console.log("SmartZoo status  : ", response.status);
+          console.log("SmartZoo error : ", response.data);
+
           return reject({ status: 402, message: "SmartZoo error" });
-        });
+        }
 
         if (
             !productid ||
@@ -943,31 +932,24 @@ const productDeleteLogic = new Promise(async (resolve, reject) => {
 
     await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
 
-    const SmartZoo = await axios.delete(`${config.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,
+    const response = await axios.delete(
+      `${process.env.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,
       {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': `${config.NEXT_PUBLIC_API_ZOO_KEY}`,
-      },
-    })
-
-    SmartZoo.then((response) => {
-
-      if (response.status === 200) {
-
-        console.log("SmartZoo response success : ", response.data);
-      }else {
-        console.log("SmartZoo status  : ", response.status);
-        console.log("SmartZoo error : ", response.data);
-
-        return reject({ status: 402, message: "SmartZoo error" });
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': `${process.env.NEXT_PUBLIC_API_ZOO_KEY}`,
+        },
       }
-    }).catch((error) => {
+    );
 
-      console.error("SmartZoo error : ", error.response ? error.response.data : error.message);
+    if (response.status === 200) {
+      console.log("SmartZoo response success : ", response.data);
+    } else {
+      console.log("SmartZoo status  : ", response.status);
+      console.log("SmartZoo error : ", response.data);
+
       return reject({ status: 402, message: "SmartZoo error" });
-
-    });
+    }
 
     if (!productid || !checkString(productid)) {
         return reject({ status: 400, message: "Invalid request" });
