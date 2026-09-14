@@ -6,6 +6,7 @@ const multer = require("multer");
 const path = require("path");
 // const { console } = require("inspector");
 const jwt = require("jsonwebtoken"); // ใช้สําหรับสร้างและตรวจสอบ JWT
+const axios = require('axios');
 const {eventlog, notification , checkAuthorizetion} = require("../../modules/fun"); // ใช้บันทึก log
 const { productslist } = require("./promotions");
 const { shoplist } = require("./shop");
@@ -540,6 +541,45 @@ exports.productcreate = [
 
         await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
 
+        const uuid = uuid();
+
+        const payloadZoo = {
+          productId: uuid,
+          posShopId: shopid, 
+          nameTh: productnameth,
+          nameEn: productnameeng,
+          detailTh: productdatath,
+          detailEn: productdataeng,
+          price: productprice,
+          // status: "ACTIVE"
+        }
+
+        const SmartZoo = await axios.post(`${config.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,payloadZoo,
+          {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': `${config.NEXT_PUBLIC_API_ZOO_KEY}`,
+          },
+        })
+
+        SmartZoo.then((response) => {
+
+          if (response.status === 200) {
+
+            console.log("SmartZoo response success : ", response.data);
+          }else {
+            console.log("SmartZoo status  : ", response.status);
+            console.log("SmartZoo error : ", response.data);
+
+            return reject({ status: 402, message: "SmartZoo error" });
+          }
+        }).catch((error) => {
+
+          console.error("SmartZoo error : ", error.response ? error.response.data : error.message);
+          return reject({ status: 402, message: "SmartZoo error" });
+
+        });
+
         if (
             !productid ||
             !shopid ||
@@ -763,6 +803,40 @@ exports.productupdate = [
 
         await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
 
+        const payloadZoo = {
+          nameTh: productnameth,
+          nameEn: productnameeng,
+          detailTh: productdatath,
+          detailEn: productdataeng,
+          price: productprice,
+          // status: "ACTIVE"
+        }
+
+        const SmartZoo = await axios.put(`${config.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,payloadZoo,
+          {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': `${config.NEXT_PUBLIC_API_ZOO_KEY}`,
+          },
+        })
+
+        SmartZoo.then((response) => {
+
+          if (response.status === 200) {
+
+            console.log("SmartZoo response success : ", response.data);
+          }else {
+            console.log("SmartZoo status  : ", response.status);
+            console.log("SmartZoo error : ", response.data);
+
+            return reject({ status: 402, message: "SmartZoo error" });
+          }
+        }).catch((error) => {
+
+          console.error("SmartZoo error : ", error.response ? error.response.data : error.message);
+          return reject({ status: 402, message: "SmartZoo error" });
+        });
+
         if (
             !productid ||
             !shopid ||
@@ -868,6 +942,32 @@ const productDeleteLogic = new Promise(async (resolve, reject) => {
     await validateApiKey(req);
 
     await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
+
+    const SmartZoo = await axios.delete(`${config.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,
+      {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': `${config.NEXT_PUBLIC_API_ZOO_KEY}`,
+      },
+    })
+
+    SmartZoo.then((response) => {
+
+      if (response.status === 200) {
+
+        console.log("SmartZoo response success : ", response.data);
+      }else {
+        console.log("SmartZoo status  : ", response.status);
+        console.log("SmartZoo error : ", response.data);
+
+        return reject({ status: 402, message: "SmartZoo error" });
+      }
+    }).catch((error) => {
+
+      console.error("SmartZoo error : ", error.response ? error.response.data : error.message);
+      return reject({ status: 402, message: "SmartZoo error" });
+
+    });
 
     if (!productid || !checkString(productid)) {
         return reject({ status: 400, message: "Invalid request" });
