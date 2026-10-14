@@ -1198,7 +1198,7 @@ paths:
                           description: เวลา Update Order
                         orderstatus:
                           type: string
-                          description: สถานะ Order
+                          description: สถานะ [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]
                         ordertotalprice:
                           type: number
                           description: ราคารวม Order
@@ -1321,7 +1321,7 @@ paths:
                     description: เวลา Update Order
                   orderstatus:
                     type: string
-                    description: สถานะ Order
+                    description: สถานะ [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]
                   ordertotalprice:
                     type: number
                     description: ราคารวม Order
@@ -1597,7 +1597,7 @@ paths:
                   description: เวลาสิ้นสุด Order
                 orderstatus:
                   type: number
-                  description: สถานะที่ทำการ Update [1 = Confirm order with paid , 2 = Confirm order without paid , 3 = Order canceled by system , 4 = Order canceled by customer]
+                  description: สถานะที่ทำการ Update  [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]
                 orderispay:
                   type: number
                   description: 0 = ยังไม่ได้ชําระ , 1 = ชําระแล้ว
@@ -1721,7 +1721,7 @@ paths:
                   description: เลข Order
                 orderstatus:
                   type: string
-                  description: สถานะที่ทำการ Update  [1 = Confirm order with paid , 2 = Confirm order without paid , 3 = Order canceled by system , 4 = Order canceled by customer]
+                  description: สถานะที่ทำการ Update  [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]
                 orderispay:
                   type: number
                   description: 0 = ยังไม่ได้ชําระ , 1 = ชําระแล้ว
