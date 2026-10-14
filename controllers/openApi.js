@@ -675,75 +675,86 @@ exports.productdelete = (req, res) => {
 
 // order list ✓
 exports.orderlist = (req, res) => {
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Request timed out")), timeout)
-  );
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), timeout)
+    );
+  
+    const orderListLogic = new Promise(async (resolve, reject) => {
+      try {
+        const { shopid } = req.body;
+  
+        // Validate API key
+        await validateApiKey(req);
 
-  const { shopid } = req.body;
+        // ตรวจสอบการอนุญาตเข้าสู่ระบบ
+        // await checkAuthorizetion(req);
 
-  const orderListLogic = new Promise(async (resolve, reject) => {
-    try {
+        const timeStamp = await convertTotimestamp(req);
+  
+        if (!shopid || !checkString(shopid)) {
+          return reject({ status: 400, message: "Invalid request" });
+        }
+  
+        const db_shopid = await db
+          .select("shopid")
+          .from("shopinfo")
+          .where({ shopid });
+  
+        if (!db_shopid.length) {
+          return reject({ status: 402, message: "shopid not found" });
+        }
 
-      // Validate API key
-      await validateApiKey(req);
-
-      if (!shopid || !checkString(shopid)) {
-        return reject({ status: 400, message: "Invalid request" });
-      }
-
-      const db_shopid = await db
-        .select("shopid")
-        .from("shopinfo")
-        .where({ shopid });
-
-      if (!db_shopid.length) {
-        return reject({ status: 402, message: "shopid not found" });
-      }
-
-      const orderlist = await db
-        .select("*")
-        .from("orderinfo")
-        .where({ shopid });
-
-      let orderlist_data = [];
-      orderlist.forEach((element) => {
-        orderlist_data.push({
-          orderid: element.orderid,
-          shopid: element.shopid,
-          ordernumber: element.ordernumber,
-          ordertype: Number(element.ordertype),
-          ordertimestamp: Number(element.ordertimestamp),
-          orderstatus: Number(element.orderstatus),
-          ordertotalprice: Number(element.ordertotalprice),
-          pickupnow: Number(element.pickupnow),
-          starttime: element.starttime,
-          endtime: element.endtime,
+        // console.log(timeStamp);
+  
+        const orderlist = await db
+          .select("*")
+          .from("orderinfo")
+          .where({ shopid })
+          .andWhere("ordertimestamp", ">=", timeStamp.startTimestamp)
+          .andWhere("ordertimestamp", "<", timeStamp.endTimestamp)
+          .andWhere("status", "=", true)
+          .orderBy("ordertimestamp", "desc");
+  
+        let orderlist_data = [];
+        orderlist.forEach((element) => {
+          orderlist_data.push({
+            orderid: element.orderid,
+            shopid: element.shopid,
+            ordernumber: element.ordernumber,
+            ordertype: Number(element.ordertype),
+            ordertimestamp: Math.floor(Number(element.ordertimestamp)),
+            ordertimestamp_update: Math.floor(Number(element.update_at)),
+            orderstatus: Number(element.orderstatus),
+            ordertotalprice: Number(element.ordertotalprice),
+            pickupnow: Number(element.pickupnow),
+            starttime: element.starttime,
+            endtime: element.endtime,
+          });
         });
-      });
-
-      resolve({
-        total: orderlist_data.length,
-        result: orderlist_data,
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-
-  Promise.race([orderListLogic, timeoutPromise])
-    .then((data) => {
-      res.json(data); // Send the response only once
-    })
-    .catch((error) => {
-      if (error.status) {
-        res.status(error.status).json({ message: error.message });
-      } else if (error.message === "Request timed out") {
-        res.status(402).json({ message: "Request timed out" });
-      } else {
-        handleError(error, res);
+  
+        resolve({
+          total: orderlist_data.length,
+          result: orderlist_data,
+        });
+      } catch (error) {
+        reject(error);
       }
     });
-};
+  
+    Promise.race([orderListLogic, timeoutPromise])
+      .then((data) => {
+        res.json(data); // Send the response only once
+      })
+      .catch((error) => {
+        if (error.status) {
+          res.status(error.status).json({ message: error.message });
+        } else if (error.message === "Request timed out") {
+          res.status(402).json({ message: "Request timed out" });
+        } else {
+          handleError(error, res);
+        }
+      });
+  };
 
 // order detail ✓
 exports.orderdetail = (req, res) => {

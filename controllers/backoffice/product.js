@@ -541,10 +541,8 @@ exports.productcreate = [
 
         await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
 
-        const uuid = uuid();
-
         const payloadZoo = {
-          productId: uuid,
+          productId: productid,
           posShopId: shopid, 
           nameTh: productnameth,
           nameEn: productnameeng,
@@ -806,7 +804,7 @@ exports.productupdate = [
           // status: "ACTIVE"
         }
 
-        const response = await axios.post(
+        const response = await axios.put(
           `${process.env.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,
           payloadZoo,
           {
