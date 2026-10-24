@@ -377,7 +377,7 @@ exports.productupdatestock = (req, res) => {
       }
 
       await db("productinfo")
-          .update({ productremain , update_PRemain: Math.floor(Date.now() / 1000) })
+          .update({ productremain , update_PRemain: Math.floor(Date.now() / 1000), update_at: Math.floor(Date.now() / 1000) })
           .where({ productid });
 
       resolve({

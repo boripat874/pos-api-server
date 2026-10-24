@@ -6,6 +6,7 @@ const productinfo = require("../controllers/backoffice/product")
 const userinfo = require("../controllers/backoffice/user")
 const reportorder = require("../controllers/backoffice/report1")
 const reportuser = require("../controllers/backoffice/report2")
+const reportinventory = require("../controllers/backoffice/report3")
 const eventloginfo = require("../controllers/backoffice/eventlog")
 const notificationinfo = require("../controllers/backoffice/notification")
 const dashboardinfo = require("../controllers/backoffice/dashboard")
@@ -77,6 +78,9 @@ router.post("/backoffice/reportproductsell",reportorder.reportproductsell);
 router.post("/backoffice/receiptorder",reportorder.receiptorder);
 // router.get("/backoffice/reportproductselllist",reportorder.reportproductselllist);
 
+
+// report inventory (รายงานสินค้าคงเหลือ)
+router.post("/backoffice/reportinventorylist",reportinventory.reportinventorylist);
 
 // report user
 router.post("/backoffice/reportuserlist",reportuser.reportuserlist);

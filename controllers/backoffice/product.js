@@ -709,7 +709,7 @@ exports.productupdatestock = (req, res) => {
       }
 
       await db("productinfo")
-        .update({ productremain , update_PRemain: Math.floor(Date.now() / 1000) })
+        .update({ productremain , update_PRemain: Math.floor(Date.now() / 1000), update_at: Math.floor(Date.now() / 1000) })
         .where({ productid });
 
       resolve({
@@ -875,6 +875,7 @@ exports.productupdate = [
               productprice: Number(productprice),
               additional,
               productimage: imagePath, // เก็บ path ของไฟล์ที่อัปโหลด
+              update_at: Math.floor(Date.now() / 1000), // เวลาอัพเดตข้อมูลสินค้าล่าสุด (รายงานสินค้าคงเหลือ)
             });
 
         resolve({
