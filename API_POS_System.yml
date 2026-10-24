@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: POS API Document
-  description: |-
+  description: |
     API for POS System (เครื่อง POS) และ Backoffice
     - /api/pos/* : เครื่อง POS
     - /api/backoffice/* : เว็บ Backoffice (อยู่ท้ายเอกสาร)
@@ -231,7 +231,7 @@ paths:
   /api/pos/shopuserlist:
     post:
       summary: รายชื่อผู้ใช้ของร้าน (Manager / Employee)
-      description: |-
+      description: |
         คืนข้อมูลผู้ใช้ทั้งหมดของร้าน ยกเว้นรหัสผ่าน เฉพาะสิทธิ์ Manager และ Employee ที่ยังใช้งานอยู่
         ผู้เรียกต้องเป็นผู้ใช้ของร้านนั้น, Owner ของกลุ่มร้าน หรือ Admin
       tags:
@@ -560,8 +560,7 @@ paths:
                           description: เวลา Update Order
                         orderstatus:
                           type: string
-                          description: "สถานะ [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า\
-                            \ , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
+                          description: "สถานะ [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
                         ordertotalprice:
                           type: number
                           description: ราคารวม Order
@@ -672,8 +671,7 @@ paths:
                     description: เวลา Update Order
                   orderstatus:
                     type: string
-                    description: "สถานะ [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า\
-                      \ , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
+                    description: "สถานะ [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
                   ordertotalprice:
                     type: number
                     description: ราคารวม Order
@@ -946,8 +944,7 @@ paths:
                   description: เวลาสิ้นสุด Order
                 orderstatus:
                   type: number
-                  description: "สถานะที่ทำการ Update  [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 =\
-                    \ จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
+                  description: "สถานะที่ทำการ Update  [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
                 orderispay:
                   type: number
                   description: "0 = ยังไม่ได้ชําระ , 1 = ชําระแล้ว"
@@ -1075,8 +1072,7 @@ paths:
                   description: เลข Order
                 orderstatus:
                   type: string
-                  description: "สถานะที่ทำการ Update  [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 =\
-                    \ จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
+                  description: "สถานะที่ทำการ Update  [0 = รอดำเนินการ , 1 = ยืนยันรายการ (จ่ายแล้ว) , 2 = ยืนยันรายการ (ยังไม่จ่าย) , 3 = ถูกยกเลิดโดยระบบ , 4 = ถูกยกเลิกโดยลูกค้า , 5 = รับรายการ , 6 = จัดเตรียมสินค้า , 7 = เสร็จสิ้น , 8 = ยกเลิกโดยผู้ขาย , 9 = การจ่ายเงินล้มเหลว , 10 = สินค้าพร้อมรับ , 11 = รอจัดส่ง , 12 = กำลังจัดส่ง , 13 = จัดส่งล้มเหลว]"
                 orderispay:
                   type: number
                   description: "0 = ยังไม่ได้ชําระ , 1 = ชําระแล้ว"
@@ -3096,7 +3092,7 @@ paths:
   /api/backoffice/headerdatashopslist:
     get:
       summary: รายชื่อร้านตามสิทธิ์ผู้ใช้
-      description: |-
+      description: |
         ใช้กับตัวเลือกร้านในทุกหน้า
         สิทธิ์: Admin = ทุกร้าน, Owner = ร้านในกลุ่มร้านของตัวเอง, Manager/Employee = ร้านตัวเอง
       tags:
@@ -3150,7 +3146,7 @@ paths:
   /api/backoffice/signin:
     post:
       summary: เข้าสู่ระบบ Backoffice
-      description: ถ้ากลุ่มร้านของผู้ใช้ยังไม่มีร้าน (และไม่ใช่ Admin) จะได้ token = "-" และ activateShop = false
+      description: ถ้ากลุ่มร้านของผู้ใช้ยังไม่มีร้าน (และไม่ใช่ Admin) จะได้ token = '-' และ activateShop = false
       tags:
         - Backoffice - Verify identity
       security:
@@ -3736,7 +3732,7 @@ paths:
   /api/backoffice/productcreate:
     post:
       summary: เพิ่มสินค้า
-      description: |-
+      description: |
         ส่งแบบ multipart/form-data (รูปสินค้า field `productimage`)
         additional = ตัวเลือกเพิ่มเติม คั่นด้วย # เช่น #เผ็ดมาก#เผ็ดน้อย
       tags:
@@ -4480,7 +4476,7 @@ paths:
   /api/backoffice/userlistall:
     get:
       summary: รายการผู้ใช้ทั้งหมดตามสิทธิ์
-      description: |-
+      description: |
         สิทธิ์: Admin = ทุกร้าน, Owner = ร้านในกลุ่มร้านของตัวเอง, Manager/Employee = ร้านตัวเอง
         หมายเหตุ: response ปัจจุบันมี uinfologinpass
       tags:
@@ -4529,7 +4525,7 @@ paths:
   /api/backoffice/usercreate:
     post:
       summary: เพิ่มผู้ใช้
-      description: "ถ้าชื่อผู้ใช้ซ้ำ -> {status: 204, message: \"uinfologinname already exists\"} ; อีเมลซ้ำ -> {status: 205, ...}"
+      description: "ถ้าชื่อผู้ใช้ซ้ำ -> {status: 204, message: 'uinfologinname already exists'} ; อีเมลซ้ำ -> {status: 205, ...}"
       tags:
         - Backoffice - User
       security:
@@ -4833,7 +4829,7 @@ paths:
   /api/backoffice/reportorderlist:
     post:
       summary: รายงานการสั่งซื้อ (Online + Offline)
-      description: |-
+      description: |
         ordertype: 0 = Online (จาก orderinfo), 1 = Offline (ต้องมีใบเสร็จ)
         paymenttype: 1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด, null = ไม่มี
       tags:
@@ -5336,7 +5332,7 @@ paths:
   /api/backoffice/receiptorder:
     post:
       summary: ใบเสร็จของออเดอร์ (ใช้สร้าง PDF)
-      description: ออเดอร์ Online ไม่มี receiptinfo -> สร้างจาก orderinfo (receiptnumber = "-")
+      description: ออเดอร์ Online ไม่มี receiptinfo -> สร้างจาก orderinfo (receiptnumber = '-')
       tags:
         - Backoffice - Report
       security:
@@ -5392,9 +5388,9 @@ paths:
   /api/backoffice/reportinventorylist:
     post:
       summary: รายงานสินค้าคงเหลือ
-      description: |-
+      description: |
         สิทธิ์: Admin = ทุกร้าน, Owner = ร้านในกลุ่มร้านของตัวเอง, Manager/Employee = ร้านตัวเอง
-        shopid = "all" เพื่อดูทุกร้านที่มีสิทธิ์ ; ขอร้านที่ไม่มีสิทธิ์ -> 403
+        shopid = 'all' เพื่อดูทุกร้านที่มีสิทธิ์ ; ขอร้านที่ไม่มีสิทธิ์ -> 403
       tags:
         - Backoffice - Report
       security:
@@ -5417,7 +5413,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน หรือ "all"
+                  description: รหัสร้าน หรือ 'all'
               required:
                 - shopid
             example:
@@ -5726,7 +5722,7 @@ paths:
                 result:
                   - notificationid: n1...
                     title: บิล
-                    details: "\"POS0001\" บิลรายการสั่งซื้อใหม่"
+                    details: "'POS0001' บิลรายการสั่งซื้อใหม่"
         "400":
           description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
         "401":
@@ -5953,7 +5949,7 @@ paths:
   /api/backoffice/dashboarddatalist:
     post:
       summary: Dashboard รายร้าน (หน้า shopdetail)
-      description: |-
+      description: |
         terminal = ไฟสถานะเครื่อง POS (online เมื่อมี heartbeat ภายใน 5 นาที)
         product_sales ใช้ทำกราฟ: ชื่อเมนู / ชื่อร้าน / ราคาต่อหน่วย
       tags:
@@ -6119,9 +6115,9 @@ paths:
   /api/backoffice/dashboardproductselllist:
     get:
       summary: กราฟยอดขายสินค้ารวมทุกร้าน
-      description: |-
+      description: |
         สิทธิ์: Admin = ทุกร้าน, Owner = ร้านในกลุ่มร้านของตัวเอง, Manager/Employee = ร้านตัวเอง
-        ป้ายกราฟ: "ไข่เจียว ร้านปอนด์ ราคา 50 บาท"
+        ป้ายกราฟ: 'ไข่เจียว ร้านปอนด์ ราคา 50 บาท'
       tags:
         - Backoffice - Dashboard
       security:
@@ -6625,7 +6621,7 @@ paths:
   /api/backoffice/importshops:
     post:
       summary: นำเข้าร้านหลายร้าน
-      description: "ทำใน transaction เดียว ถ้ากลุ่มร้านไม่พบ -> {status: 202, message: \"ugroupid not found\"}"
+      description: "ทำใน transaction เดียว ถ้ากลุ่มร้านไม่พบ -> {status: 202, message: 'ugroupid not found'}"
       tags:
         - Backoffice - Import / Export
       security:
