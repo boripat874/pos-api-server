@@ -10,7 +10,7 @@ const pos = require("./routes/pos");
 var bodyParser = require('body-parser')
 const app = express();
 const cors = require("cors");
-const {createReceipt,uploadReceipt} = require("./cloudMinIO");
+const {createReceipt,uploadReceipt,retryPendingReceipt,receiptSyncStatus} = require("./cloudMinIO");
 const {setshoplot} = require("./setshopslot");
 const cron = require("node-cron");
 
@@ -73,7 +73,31 @@ app.use("/uploads", express.static("uploads"));
         console.error("Error CSV:", error.message);
         }
     });
+
+  // retry รายการ receipt ที่ยังส่งไม่สำเร็จ ทุกชั่วโมงที่นาที 30 (01:30, 02:30, ...)
+  // นาที 30 เพื่อไม่ชนกับรอบ daily 00:05 ; ถ้าไม่มีของค้างจะไม่ทำอะไร
+    cron.schedule("30 * * * *", async () => {
+        try {
+        const r = await retryPendingReceipt();
+        if (!r || !r.skipped) console.log("Receipt retry:", JSON.stringify(r));
+        } catch (error) {
+        console.error("Error CSV retry:", error.message);
+        }
+    });
 })();
+
+app.get("/receiptretry", async(req, res) => {
+    res.send(await retryPendingReceipt());
+})
+
+app.get("/receiptsyncstatus", async(req, res) => {
+    try {
+        const days = Math.min(Math.max(parseInt(req.query.days) || 7, 1), 90);
+        res.send(await receiptSyncStatus(days));
+    } catch (error) {
+        res.status(500).send({ error: error.message });
+    }
+})
  
 app.get("/uploadscsv", async(req, res) => {
 
