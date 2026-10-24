@@ -233,12 +233,11 @@ paths:
       summary: รายชื่อผู้ใช้ของร้าน (Manager / Employee)
       description: |
         คืนข้อมูลผู้ใช้ทั้งหมดของร้าน ยกเว้นรหัสผ่าน เฉพาะสิทธิ์ Manager และ Employee ที่ยังใช้งานอยู่
-        ผู้เรียกต้องเป็นผู้ใช้ของร้านนั้น, Owner ของกลุ่มร้าน หรือ Admin
+        ใช้แค่ X-API-KEY (ไม่ต้อง login)
       tags:
         - Verify identity
       security:
         - api_key: []
-        - Authorization: []
       requestBody:
         required: true
         content:
@@ -282,8 +281,6 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
-        "403":
-          description: User is not allowed for this shop
         "404":
           description: shopid not found
         "500":

@@ -1113,8 +1113,7 @@ exports.shopuserlist = async (req, res) => {
   const shopuserlistLogic = new Promise(async (resolve, reject) => {
     try {
 
-      await validateApiKey(req);       // ตรวจสอบ API key
-      await checkAuthorizetion(req);   // ตรวจสอบการเข้าสู่ระบบ
+      await validateApiKey(req);       // ตรวจสอบ API key (ไม่ต้องใช้ token)
 
       const shopid = String(req.body.shopid || "").trim();
       if (!shopid || !checkString(shopid)) {
@@ -1129,20 +1128,6 @@ exports.shopuserlist = async (req, res) => {
         return reject({ status: 404, message: "shopid not found" });
       }
 
-      // ผู้เรียกต้องมีสิทธิ์ในร้านนี้ (Admin / Owner ของกลุ่มร้าน / ผู้ใช้ของร้านนี้)
-      const { uinfoid } = jwt.verify(req.headers.authorization.split(" ")[1], process.env.JWT_SECRET);
-      const requester = await db("userinfo")
-        .select("level", "shopid", "ugroupid")
-        .where({ uinfoid, status: true })
-        .first();
-      const allowed =
-        requester &&
-        (requester.level === "Admin" ||
-          (requester.level === "Owner" && requester.ugroupid === shop.ugroupid) ||
-          requester.shopid === shopid);
-      if (!allowed) {
-        return reject({ status: 403, message: "User is not allowed for this shop" });
-      }
 
       // ไม่ select uinfologinpass (รหัสผ่าน)
       const users = await db("userinfo")
@@ -1199,8 +1184,7 @@ exports.shopuserlist = async (req, res) => {
     })
     .catch((error) => {
       if (error.status) {
-        const msg = typeof error.message === "string" ? error.message : "Unauthorized";
-        res.status(error.status).json({ message: msg });
+        res.status(error.status).json({ message: error.message });
       } else if (error.message === "Request timed out") {
         res.status(402).json({ message: "Request timed out" });
       } else {
