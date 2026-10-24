@@ -115,15 +115,26 @@ exports.reportorderlist = (req, res) => {
         "orderinfo.vat7pc as vat7pc",
         "orderinfo.ordertotaldiscount as ordertotaldiscount",
         "orderinfo.orderpricenet as orderpricenet",
+        "orderinfo.ordertype as ordertype",
+        "orderinfo.orderpaytype as orderpaytype",
         "receiptinfo.paymentType as paymenttype",
         "receiptinfo.urlfile as urlfile",
       )
       // .join("shopinfo", "shopinfo.shopid", "orderinfo.shopid")
       .leftJoin("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
       .where("orderinfo.shopid", shopid)
-      .andWhere({status: true})
+      .andWhere({"orderinfo.status": true})
       .andWhere("orderinfo.orderispay",">" ,0)
-      .andWhereNot("receiptinfo.paymentType", null || 0)
+      .andWhere(function () {
+        // Online (ordertype = 0): ไม่มีใบเสร็จใน receiptinfo -> ใช้ข้อมูลจาก orderinfo อย่างเดียว
+        this.where("orderinfo.ordertype", ORDERTYPE_ONLINE)
+        // Offline (ordertype = 1): ต้องมีใบเสร็จที่ระบุประเภทการชำระ (เหมือนเดิม)
+        .orWhere(function () {
+          this.whereNot("orderinfo.ordertype", ORDERTYPE_ONLINE)
+          .whereNotNull("receiptinfo.paymentType")
+          .whereNot("receiptinfo.paymentType", 0);
+        });
+      })
       .andWhere(function () {
         // this.where("shopnameth", "ILIKE", `%${search}%`)
         // .orWhere("shopnameeng", "ILIKE", `%${search}%`)
@@ -156,16 +167,23 @@ exports.reportorderlist = (req, res) => {
           }
         }
 
+        const isOnline = Number(item.ordertype) === ORDERTYPE_ONLINE;
+        const totalprice = toNumber(item.ordertotalprice);
+        const discount = toNumber(item.ordertotaldiscount); // ไม่มีส่วนลด -> 0
+
         return {
             // ...item, // Keep other properties like shop names, product names etc.
             ordertimestamp: formattedTimestamp, // Use the formatted timestamp
             ordernumber: item.ordernumber,
-            ordertotalprice: Number(item.ordertotalprice),
-            vat7pc: Number(item.vat7pc),
-            ordertotaldiscount: Number(item.ordertotaldiscount),
-            orderpricenet: Number(item.orderpricenet),
-            paymenttype: item.paymenttype,
-            urlfile: item.urlfile
+            ordertype: isOnline ? ORDERTYPE_ONLINE : ORDERTYPE_OFFLINE,
+            orderchannel: isOnline ? "Online" : "Offline", // สถานะรายการสั่งซื้อ
+            ordertotalprice: totalprice,
+            vat7pc: toNumber(item.vat7pc),
+            ordertotaldiscount: discount,
+            orderpricenet: netPrice(item.orderpricenet, totalprice, discount),
+            // ไม่มีประเภทการชำระ -> null (หน้าเว็บแสดง "-")
+            paymenttype: isOnline ? toPaymentType(item.orderpaytype) : toPaymentType(item.paymenttype),
+            urlfile: item.urlfile || null
         };
       });
 
@@ -203,6 +221,79 @@ exports.reportorderlist = (req, res) => {
   });
 };
 
+// ===================== Online / Offline helpers =====================
+const ORDERTYPE_ONLINE = 0;   // ออเดอร์จาก ZooApp (openApi)
+const ORDERTYPE_OFFLINE = 1;  // ออเดอร์จากเครื่อง POS
+
+// ราคาสุทธิ: online จาก openApi ไม่ได้บันทึก orderpricenet -> ใช้ ราคารวม - ส่วนลด
+const NET_PRICE_SQL =
+  "COALESCE(orderinfo.orderpricenet, GREATEST(COALESCE(orderinfo.ordertotalprice, 0) - COALESCE(orderinfo.ordertotaldiscount, 0), 0))";
+
+function toNumber(v) {
+  const n = Number(v);
+  return v === null || v === undefined || v === "" || Number.isNaN(n) ? 0 : n;
+}
+
+function netPrice(pricenet, totalprice, discount) {
+  if (pricenet !== null && pricenet !== undefined && pricenet !== "" && !Number.isNaN(Number(pricenet))) {
+    return Number(pricenet);
+  }
+  return Math.max(totalprice - discount, 0);
+}
+
+// 1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด ; อื่นๆ/ไม่มี -> null
+function toPaymentType(v) {
+  const n = Number(v);
+  return v !== null && v !== undefined && v !== "" && Number.isInteger(n) && n >= 1 && n <= 4 ? n : null;
+}
+
+// ใบเสร็จของออเดอร์ online (สร้างจาก orderinfo + orderdetail)
+async function onlineReceipt(ordernumber) {
+  const order = await db("orderinfo")
+    .select("orderid", "ordernumber", "ordertimestamp", "ordertotalprice", "ordertotaldiscount", "orderpricenet", "orderpaytype", "create_at")
+    .where({ ordernumber, ordertype: ORDERTYPE_ONLINE })
+    .first();
+  if (!order) return null;
+
+  const orderDetails = await db("orderdetail")
+    .select(
+      "orderdetail.productid",
+      "orderdetail.qty",
+      "orderdetail.productprice",
+      "productinfo.productnameth",
+      "productinfo.productnameeng"
+    )
+    .join("productinfo", "orderdetail.productid", "productinfo.productid")
+    .where({ "orderdetail.orderid": order.orderid });
+
+  const totalprice = toNumber(order.ordertotalprice);
+  const discount = toNumber(order.ordertotaldiscount);
+  const net = netPrice(order.orderpricenet, totalprice, discount);
+
+  return {
+    receiptid: null,
+    ordernumber: order.ordernumber,
+    receiptnumber: "-",
+    paymenttype: toPaymentType(order.orderpaytype),
+    receiptcash: net,          // online ชำระผ่านแอปเต็มจำนวน
+    receiptchange: 0,
+    receiptdiscount: discount,
+    totalprice,
+    totalpricenet: net,
+    create_at: Math.floor(Number(order.ordertimestamp) || Number(order.create_at)),
+    orderid: order.orderid,
+    ordertype: ORDERTYPE_ONLINE,
+    orderchannel: "Online",
+    products: orderDetails.map((item) => ({
+      productid: item.productid,
+      productnameth: item.productnameth,
+      productnameeng: item.productnameeng,
+      qty: Number(item.qty),
+      productprice: Number(item.productprice),
+    })),
+  };
+}
+
 // report total income
 exports.reporttotalincome = (req, res) => {
 
@@ -227,7 +318,7 @@ exports.reporttotalincome = (req, res) => {
       }
 
       const query_total_income = await db("orderinfo")
-      .sum("orderpricenet as total_income")
+      .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
       .where("shopid", shopid)
       .andWhere({status: true})
       .andWhere("orderispay",">" ,0)
@@ -830,6 +921,9 @@ exports.receiptorder = async (req, res) => {
         .orderBy("receiptinfo.create_at", "desc");
 
       if (receiptRows.length === 0) {
+        // Online: ไม่มีใบเสร็จใน receiptinfo -> ใช้ข้อมูลจาก orderinfo
+        const online = await onlineReceipt(ordernumber);
+        if (online) return resolve(online);
         return reject({ status: 402, message: "receiptinfo not found" });
       }
 
@@ -855,7 +949,9 @@ exports.receiptorder = async (req, res) => {
         receiptid: receiptRows[0].receiptid,
         ordernumber: receiptRows[0].ordernumber,
         receiptnumber: receiptRows[0].receiptnumber,
-        paymenttype: Number(receiptRows[0].paymenttype),
+        paymenttype: toPaymentType(receiptRows[0].paymenttype),
+        ordertype: ORDERTYPE_OFFLINE,
+        orderchannel: "Offline",
         receiptcash: Number(receiptRows[0].receiptcash),
         receiptchange: Number(receiptRows[0].receiptchange),
         receiptdiscount: Number(receiptRows[0].receiptdiscount),
