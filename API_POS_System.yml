@@ -124,6 +124,67 @@ paths:
                     description: Error message
               example:
                 message: "Unauthorized"
+  /api/pos/terminalheartbeat:
+    post:
+      summary: Terminal heartbeat (สถานะเครื่อง POS)
+      description: |
+        เครื่อง POS ยิงเข้ามาเรื่อยๆ (แนะนำทุก 60 วินาที) ขณะที่ user login อยู่
+        - เช็ค API key และ user login (Bearer token จาก /api/pos/signin)
+        - ไม่มีอัปเดตภายใน 5 นาที -> Backoffice แสดงไฟสีเทา และ openApi /api/availableslot จะไม่ส่ง slot ให้ App
+        - ส่ง status = "logout" (หรือเรียก /api/pos/signout) -> offline ทันที
+      tags:
+        - Verify identity
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                terminalid:
+                  type: string
+                  description: รหัสเครื่อง POS (a-z, 0-9, _ , -) ไม่ซ้ำกันภายในร้าน
+                shopid:
+                  type: string
+                  description: รหัสร้าน (ไม่ส่ง = ใช้ร้านของ user)
+                appversion:
+                  type: string
+                  description: เวอร์ชันแอป POS
+                status:
+                  type: string
+                  enum: [online, logout]
+                  description: ค่าเริ่มต้น online
+              required:
+                - terminalid
+            example:
+              terminalid: T01
+              shopid: POS_SHOP_001
+              appversion: 1.0.0
+              status: online
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              example:
+                shopid: POS_SHOP_001
+                terminalid: T01
+                status: online
+                server_time: 1761320000
+                online_window_sec: 300
+                message: Heartbeat received
+        "400":
+          description: Invalid request
+        "401":
+          description: Unauthorized (API key / token ไม่ถูกต้อง หรือ token หมดอายุ)
+        "403":
+          description: User ไม่มีสิทธิ์ในร้านนี้
+        "404":
+          description: shopid not found
+
   /api/pos/checklogin:
     get:
       summary: Check login

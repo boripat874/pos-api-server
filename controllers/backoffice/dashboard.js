@@ -1,4 +1,5 @@
 const {db} = require("../../db/postgresql");
+const { getTerminalStatus, ONLINE_WINDOW_SEC, SLOT_REQUIRE_TERMINAL_ONLINE } = require("../../modules/terminalStatus");
 const fs = require("fs");
 const date = require("date-and-time");
 const { uuid } = require("uuidv4");
@@ -82,6 +83,53 @@ async function deleteUploadedFile(filePath) {
 }
 
 // dashboardDataList
+// ราคาสุทธิ: ออเดอร์ online จาก openApi ไม่ได้บันทึก orderpricenet -> ใช้ ราคารวม - ส่วนลด
+const NET_PRICE_SQL =
+  "COALESCE(orderinfo.orderpricenet, GREATEST(COALESCE(orderinfo.ordertotalprice, 0) - COALESCE(orderinfo.ordertotaldiscount, 0), 0))";
+
+// ข้อมูลไฟสถานะสำหรับหน้าเว็บ
+function terminalView(t) {
+  return {
+    online: !!(t && t.online),
+    last_seen: t && t.last_seen ? date.format(new Date(t.last_seen * 1000), "YYYY-MM-DD HH:mm:ss") : null,
+    last_seen_ago_sec: t ? t.last_seen_ago_sec : null,
+    online_terminals: t ? t.online_terminals : 0,
+    total_terminals: t ? t.total_terminals : 0,
+    uinfoname: t ? t.uinfoname : null,
+    // App จะได้ slot ก็ต่อเมื่อ terminal online (หรือปิด gate ด้วย SLOT_REQUIRE_TERMINAL_ONLINE=false)
+    slot_to_app: SLOT_REQUIRE_TERMINAL_ONLINE ? !!(t && t.online) : true,
+  };
+}
+
+// สินค้าขายดี: ชื่อเมนู / ชื่อร้าน / ราคาต่อหน่วย
+function productSalesQuery(timestamp) {
+  return db("orderdetail")
+    .join("orderinfo", "orderinfo.orderid", "orderdetail.orderid")
+    .join("productinfo", function () {
+      this.on("productinfo.productid", "=", "orderdetail.productid").andOn("productinfo.shopid", "=", "orderinfo.shopid");
+    })
+    .join("shopinfo", "shopinfo.shopid", "orderinfo.shopid")
+    .andWhere("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+    .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp)
+    .andWhere("orderinfo.orderispay", ">", 0)
+    .andWhere("orderinfo.status", true)
+    .groupBy("productinfo.productid", "productinfo.productnameth", "productinfo.productprice", "productinfo.shopid", "shopinfo.shopnameth")
+    .select("productinfo.productid", "productinfo.productnameth", "productinfo.productprice", "productinfo.shopid", "shopinfo.shopnameth")
+    .sum("orderdetail.qty as totalitem")
+    .orderBy("totalitem", "desc");
+}
+
+function mapProductSales(rows) {
+  return rows.map((item) => ({
+    productid: item.productid,
+    productnameth: item.productnameth,
+    shopid: item.shopid,
+    shopnameth: item.shopnameth || "",
+    productprice: Number(item.productprice) || 0,
+    totalitem: Number(item.totalitem) || 0,
+  }));
+}
+
 exports.dashboardDataList = async (req, res) => {
     const timeoutPromise = new Promise((_, reject) =>
     setTimeout(() => reject(new Error("Request timed out")), timeout)
@@ -112,7 +160,7 @@ exports.dashboardDataList = async (req, res) => {
         }
 
         const query_total_income = await db("orderinfo")
-            .sum("orderpricenet as total_income")
+            .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
             .where("shopid", shopid)
             .andWhere("status", true)
             .andWhere("orderispay",">" ,0)
@@ -198,28 +246,10 @@ exports.dashboardDataList = async (req, res) => {
                 .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
 
-        const product_sales = await db("orderdetail")
-            .join("productinfo", "productinfo.productid", "orderdetail.productid")
-            .join("orderinfo", "orderinfo.orderid", "orderdetail.orderid")
-            // .join("shopinfo", "shopinfo.shopid", "productinfo.shopid")
-            .where("productinfo.shopid", shopid)
-            .andWhere("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
-            .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp)
-            .andWhere("orderinfo.orderispay",">" ,0)
-            .andWhere("orderinfo.status", true)
-            .groupBy("productinfo.productid" ,"productinfo.productnameth")
-            .select("productinfo.productid" ,"productinfo.productnameth")
-            // .having("shopinfo.shopnameth", "like", "%ร้าน%")
-            .sum("orderdetail.qty as totalitem")
-            .orderBy("totalitem", "desc")
+        const product_sales = await productSalesQuery(timestamp).andWhere("orderinfo.shopid", shopid);
+        const result_product_sales = mapProductSales(product_sales);
 
-        const result_product_sales = product_sales.map((item) => {
-            return {
-                productid: item.productid,
-                productnameth: item.productnameth,
-                totalitem: Number(item.totalitem),
-            };
-        });
+        const terminal = (await getTerminalStatus([shopid])).get(shopid);
 
         resolve({
           result: {
@@ -233,6 +263,8 @@ exports.dashboardDataList = async (req, res) => {
             total_order: Number(query_total_order[0].total_order) || 0,
             total_product: Number(query_total_product[0].total_product) || 0,
             product_sales: result_product_sales,
+            terminal: terminalView(terminal),
+            online_window_sec: ONLINE_WINDOW_SEC,
           },
         });
 
@@ -305,12 +337,20 @@ exports.dashboardOverview = (req, res) => {
                 .orderBy("shopid", "asc")
                 .orderBy("create_at", "asc");
 
+            // แบ่งหน้า: หน้าละไม่เกิน 10 ร้าน (?page=1&limit=10)
+            const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 10);
+            const totalShops = shoplist.length;
+            const totalPages = Math.max(Math.ceil(totalShops / limit), 1);
+            const page = Math.min(Math.max(parseInt(req.query.page) || 1, 1), totalPages);
+            const pageShops = shoplist.slice((page - 1) * limit, page * limit);
+            const terminals = await getTerminalStatus(pageShops.map((s) => s.shopid));
+
                 // console.log("shoplist",shoplist);
 
             const totalincome = async(shopid) => {
 
                 return db("orderinfo")
-                .sum("orderinfo.orderpricenet as total")
+                .select(db.raw(`SUM(${NET_PRICE_SQL}) as total`))
                 .where("shopid", shopid)
                 .andWhere("orderinfo.status", true)
                 .andWhere("orderinfo.orderispay",">" ,0)
@@ -364,8 +404,8 @@ exports.dashboardOverview = (req, res) => {
 
             let resultCard = [];
 
-            if (shoplist.length > 0) {
-                resultCard = await Promise.all(shoplist.map(async (item) => {
+            if (pageShops.length > 0) {
+                resultCard = await Promise.all(pageShops.map(async (item) => {
 
                     return {
                       shopid: item.shopid,
@@ -374,6 +414,7 @@ exports.dashboardOverview = (req, res) => {
                       totalincome: Number(await totalincome(item.shopid)) || 0,
                       totalorder: Number(await totalorder(item.shopid)) || 0,
                       totalproduct: Number(await totalproduct(item.shopid)) || 0,
+                      terminal: terminalView(terminals.get(item.shopid)),
                     };
                     
                     })
@@ -381,6 +422,11 @@ exports.dashboardOverview = (req, res) => {
             }
 
             resolve({
+                page,
+                limit,
+                total: totalShops,
+                totalPages,
+                online_window_sec: ONLINE_WINDOW_SEC,
                 result: resultCard
             });
         }
@@ -431,33 +477,20 @@ exports.dashboardproductselllist = (req, res) => {
             //     .where({"status": true, "ugroupid": ugroupid})
             //     .orderBy("create_at", "desc");
 
-            const product_sales = await db("orderdetail")
-            .join("productinfo", "productinfo.productid", "orderdetail.productid")
-            .join("orderinfo", "orderinfo.orderid", "orderdetail.orderid")
-            .join("shopinfo", "shopinfo.shopid", "productinfo.shopid")
-            .where("shopinfo.ugroupid", ugroupid)
-            .andWhere("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
-            .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp)
-            .andWhere("orderinfo.orderispay",">" ,0)
-            .andWhere("orderinfo.status", true)
-            .groupBy("productinfo.productid" ,"productinfo.productnameth" ,"productinfo.shopid")
-            .select("productinfo.productid" ,"productinfo.productnameth","productinfo.shopid")
-            // .having("shopinfo.shopnameth", "like", "%ร้าน%")
-            .sum("orderdetail.qty as totalitem")
-            .orderBy("totalitem", "desc")
-
-            // console.log("product_sales",product_sales);
-
-            const result_product_sales = product_sales.map((item) => {
-                return {
-                    productid: item.productid,
-                    productnameth: item.productnameth,
-                    totalitem: Number(item.totalitem),
-                    // totalitem: 0,
-
-                    shopid: item.shopid,
-                };
-            });
+            // Admin = ทุกร้าน, Owner = ร้านในกลุ่ม, อื่นๆ = ร้านตัวเอง
+            const user = await db("userinfo").select("level", "shopid").where({ uinfoid }).first();
+            const q = productSalesQuery(timestamp);
+            if (!user) {
+                return reject({ status: 402, message: "User not found" });
+            } else if (user.level === "Admin") {
+                // ทุกร้าน
+            } else if (user.level === "Owner") {
+                q.andWhere("shopinfo.ugroupid", ugroupid);
+            } else {
+                q.andWhere("orderinfo.shopid", user.shopid);
+            }
+            const product_sales = await q;
+            const result_product_sales = mapProductSales(product_sales);
 
             resolve({
                 total: result_product_sales.length,

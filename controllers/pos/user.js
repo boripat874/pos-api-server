@@ -1,4 +1,5 @@
 const {db} = require("../../db/postgresql");
+const { markUserTerminalsLoggedOut } = require("./terminal");
 const fs = require("fs");
 const date = require("date-and-time");
 const { uuid } = require("uuidv4");
@@ -227,6 +228,9 @@ exports.signout = async(req, res) => {
       .insert({ jti: jti})
       .onConflict('jti') // ถ้ามี jti นี้อยู่แล้ว (อาจจะ logout ซ้ำ)
       .ignore();         // ไม่ต้องทำอะไร (หรือ .doNothing() ขึ้นอยู่กับเวอร์ชัน Knex/DB)
+
+      // เครื่อง POS ของ user นี้ -> offline ทันที (Dashboard ไฟเทา / ไม่ส่ง slot ให้ App)
+      await markUserTerminalsLoggedOut(uinfoid);
 
       await db("userinfo")
           .select("uinfoid")

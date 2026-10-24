@@ -11,6 +11,7 @@ const promotions = require("../controllers/pos/promotions")
 const login = require("../controllers/pos/login")
 const order = require("../controllers/pos/order")
 const shopinfo = require("../controllers/pos/shop")
+const terminal = require("../controllers/pos/terminal")
 
 // login
 router.get("/pos/checklogin",login.checklogin);
@@ -28,6 +29,9 @@ router.get("/pos/userinfo",userinfo.userinfo);
 // router.post("/pos/usercreate",userinfo.usercreate);
 // router.put("/pos/useredit",userinfo.useredit);
 // router.delete("/pos/userdelete",userinfo.userdelete);
+
+// terminal heartbeat (สถานะเครื่อง POS online/offline)
+router.post("/pos/terminalheartbeat",terminal.terminalheartbeat);
 
 // shop
 router.get("/pos/shopslist",shopinfo.shoplist);
