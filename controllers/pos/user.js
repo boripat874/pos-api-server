@@ -1099,3 +1099,112 @@ exports.userdelete = async (req, res) => {
         }
       });
 };
+
+// =====================================================================
+// POST /api/pos/shopuserlist   body: { shopid }
+// รายชื่อผู้ใช้ของร้าน เฉพาะสิทธิ์ Manager และ Employee (ไม่ส่งรหัสผ่าน)
+// =====================================================================
+exports.shopuserlist = async (req, res) => {
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Request timed out")), timeout)
+  );
+
+  const shopuserlistLogic = new Promise(async (resolve, reject) => {
+    try {
+
+      await validateApiKey(req);       // ตรวจสอบ API key
+      await checkAuthorizetion(req);   // ตรวจสอบการเข้าสู่ระบบ
+
+      const shopid = String(req.body.shopid || "").trim();
+      if (!shopid || !checkString(shopid)) {
+        return reject({ status: 400, message: "Invalid request" });
+      }
+
+      const shop = await db("shopinfo")
+        .select("shopid", "shopnameth", "ugroupid")
+        .where({ shopid, status: true })
+        .first();
+      if (!shop) {
+        return reject({ status: 404, message: "shopid not found" });
+      }
+
+      // ผู้เรียกต้องมีสิทธิ์ในร้านนี้ (Admin / Owner ของกลุ่มร้าน / ผู้ใช้ของร้านนี้)
+      const { uinfoid } = jwt.verify(req.headers.authorization.split(" ")[1], process.env.JWT_SECRET);
+      const requester = await db("userinfo")
+        .select("level", "shopid", "ugroupid")
+        .where({ uinfoid, status: true })
+        .first();
+      const allowed =
+        requester &&
+        (requester.level === "Admin" ||
+          (requester.level === "Owner" && requester.ugroupid === shop.ugroupid) ||
+          requester.shopid === shopid);
+      if (!allowed) {
+        return reject({ status: 403, message: "User is not allowed for this shop" });
+      }
+
+      // ไม่ select uinfologinpass (รหัสผ่าน)
+      const users = await db("userinfo")
+        .select(
+          "uinfoid",
+          "ugroupid",
+          "shopid",
+          "uinfologinname",
+          "uinfoname",
+          "uinfoemail",
+          "level",
+          "details",
+          "uinfodata1",
+          "uinfodata2",
+          "status",
+          "create_at",
+          "update_at"
+        )
+        .where({ shopid, status: true })
+        .whereIn("level", ["Manager", "Employee"])
+        .orderBy([{ column: "level", order: "asc" }, { column: "uinfoname", order: "asc" }]);
+
+      const fmt = (ts) => (ts ? date.format(new Date(Number(ts) * 1000), "YYYY-MM-DD HH:mm") : null);
+
+      resolve({
+        shopid: shop.shopid,
+        shopnameth: shop.shopnameth,
+        total: users.length,
+        result: users.map((u) => ({
+          uinfoid: u.uinfoid,
+          ugroupid: u.ugroupid,
+          shopid: u.shopid,
+          uinfologinname: u.uinfologinname,
+          uinfoname: u.uinfoname,          // ชื่อ นามสกุล
+          uinfoemail: u.uinfoemail,
+          level: u.level,                  // Manager | Employee
+          details: u.details,
+          uinfodata1: u.uinfodata1,
+          uinfodata2: u.uinfodata2,
+          status: u.status,
+          create_at: fmt(u.create_at),
+          update_at: fmt(u.update_at),
+        })),
+      });
+
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+  Promise.race([shopuserlistLogic, timeoutPromise])
+    .then((result) => {
+      res.status(200).json(result);
+    })
+    .catch((error) => {
+      if (error.status) {
+        const msg = typeof error.message === "string" ? error.message : "Unauthorized";
+        res.status(error.status).json({ message: msg });
+      } else if (error.message === "Request timed out") {
+        res.status(402).json({ message: "Request timed out" });
+      } else {
+        handleError(error, res);
+      }
+    });
+};

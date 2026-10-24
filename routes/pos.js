@@ -21,6 +21,7 @@ router.get("/pos/checklogin",login.checklogin);
 router.post("/pos/signin",userinfo.signin);
 router.get("/pos/signout",userinfo.signout);
 router.get("/pos/userinfo",userinfo.userinfo);
+router.post("/pos/shopuserlist",userinfo.shopuserlist);
 // router.get("/pos/groupuserlist",userinfo.groupuserlist);
 // router.post("/pos/groupusercreate",userinfo.groupusercreate);
 // router.put("/pos/groupuseredit",userinfo.groupuseredit);

@@ -13,6 +13,7 @@ const cors = require("cors");
 const {createReceipt,uploadReceipt,retryPendingReceipt,receiptSyncStatus} = require("./cloudMinIO");
 const {setshoplot} = require("./setshopslot");
 const cron = require("node-cron");
+const { arcsightAudit } = require("./modules/arcsightAudit");
 
 require("dotenv").config();
 
@@ -39,6 +40,9 @@ app.use(cors(corsOptions));
 
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json()); 
+
+// ArcSight: ส่ง log ทุก API ที่เป็น POST / PUT / DELETE
+app.use(arcsightAudit);
 
 app.use('/api',openApi); // Use Routes API
 app.use('/api',apiBackoffice);

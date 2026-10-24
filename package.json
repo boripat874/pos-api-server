@@ -1,6 +1,6 @@
 {
   "name": "api_swagger",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -32,6 +32,8 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuidv4": "^6.2.13",
+    "winston": "^3.17.0",
+    "winston-syslog": "^2.7.1",
     "yamljs": "^0.3.0"
   },
   "bin": {

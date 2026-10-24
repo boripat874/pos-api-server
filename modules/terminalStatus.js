@@ -2,14 +2,15 @@
 // สถานะเครื่อง POS (Terminal) ของแต่ละร้าน จาก heartbeat ที่เครื่อง POS ยิงเข้ามา
 //   Online  = มี terminal ที่ login อยู่ และส่ง heartbeat ล่าสุดภายใน 5 นาที
 //   Offline = ไม่มีอัปเดตเกิน 5 นาที / logout แล้ว / ไม่เคยส่ง
-// ใช้ร่วมกัน: Dashboard (overview, shopdetail) และ openApi availableslot (ไม่ส่ง slot ถ้า offline)
+// ใช้กับ Dashboard (overview, shopdetail)
 // =====================================================================
 const { db } = require("../db/postgresql");
 
 const ONLINE_WINDOW_SEC = Number(process.env.TERMINAL_ONLINE_WINDOW_SEC) || 300; // 5 นาที
 
-// ปิด gate ชั่วคราวได้ด้วย SLOT_REQUIRE_TERMINAL_ONLINE=false (เช่น ระหว่างรอ POS อัปเดตแอป)
-const SLOT_REQUIRE_TERMINAL_ONLINE = String(process.env.SLOT_REQUIRE_TERMINAL_ONLINE ?? "true").toLowerCase() !== "false";
+// openApi availableslot ใช้ logic เดิม (ไม่ได้ตัด slot ตามสถานะ terminal)
+// ค่านี้ใช้แค่แสดงผลบน Dashboard (slot_to_app) ; ค่าเริ่มต้น false = App ได้ slot เสมอ
+const SLOT_REQUIRE_TERMINAL_ONLINE = String(process.env.SLOT_REQUIRE_TERMINAL_ONLINE ?? "false").toLowerCase() === "true";
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
