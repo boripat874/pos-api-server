@@ -1,5 +1,4 @@
 const {db} = require("../db/postgresql");
-const { SLOT_REQUIRE_TERMINAL_ONLINE, isShopTerminalOnline } = require("../modules/terminalStatus");
 // const knex = require("knex");
 const date = require("date-and-time");
 const { uuid } = require("uuidv4");
@@ -1779,18 +1778,6 @@ exports.availableslot = (req, res) => {
         if (!db_shopid.length) {
           return reject({ status: 404, message: "shopid not found" });
         }
-
-        // เครื่อง POS ของร้านไม่ได้ส่ง heartbeat ภายใน 5 นาที (network ขาด / ปิดเครื่อง / logout)
-        // -> ไม่ส่ง slot ให้ App เพื่อไม่ให้ลูกค้าสั่งเข้าร้านที่รับออเดอร์ไม่ได้
-        if (SLOT_REQUIRE_TERMINAL_ONLINE && !(await isShopTerminalOnline(shopid))) {
-          return resolve({
-            shopid,
-            pickupnow: 0,
-            terminalonline: false,
-            availableslot: [],
-            message: "Shop terminal is offline",
-          });
-        }
   
         const shopslist = await db("shopinfo")
           .join("shopslot", "shopinfo.shopid", "shopslot.shopid")
@@ -1812,9 +1799,6 @@ exports.availableslot = (req, res) => {
         const second = dateNow.getSeconds();
   
         const timeStamp = Date.parse(`2000-01-01 ${hour}:${minute}:${second}`);
-        if (!shopslist.length) {
-          return resolve({ shopid, pickupnow: 0, terminalonline: true, availableslot: [] });
-        }
         const shopclosetime = Date.parse(`2000-01-01 ${shopslist[0].shopclosetime}`);
   
         shopslist.forEach((element) => {
@@ -1860,7 +1844,6 @@ exports.availableslot = (req, res) => {
         resolve({
           shopid,
           pickupnow: pickupnowStatus,
-          terminalonline: true,
           availableslot: shoplist_data,
         });
       } catch (error) {
