@@ -463,7 +463,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           pickupnow,
           starttime,
           endtime,
-          ordertype: 1,
+          ordertype: 1, 
           terminalid: terminalid_,
           transactionid: transactionid_,
         });
