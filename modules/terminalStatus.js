@@ -22,6 +22,14 @@ async function getTerminalStatus(shopIds) {
   const result = new Map();
   if (!shopIds || !shopIds.length) return result;
 
+  // จำนวนเครื่องทั้งหมด = เครื่องที่ลงทะเบียนและเปิดใช้งานใน Backoffice > ตั้งค่าเครื่อง POS (terminalinfo)
+  const registered = await db("terminalinfo")
+    .whereIn("shopid", shopIds)
+    .andWhere("status", true)
+    .select("shopid", "terminalid");
+  const registeredKeys = new Set(registered.map((r) => `${r.shopid}|${r.terminalid}`));
+
+  // heartbeat ล่าสุดของแต่ละเครื่อง
   const rows = await db("terminal_heartbeat as t")
     .leftJoin("userinfo as u", "u.uinfoid", "t.uinfoid")
     .whereIn("t.shopid", shopIds)
@@ -40,15 +48,21 @@ async function getTerminalStatus(shopIds) {
       terminalid: null,
     });
   }
+  for (const r of registered) {
+    const s = result.get(r.shopid);
+    if (s) s.total_terminals++;
+  }
 
   for (const r of rows) {
     const s = result.get(r.shopid);
     if (!s) continue;
+    // นับเฉพาะเครื่องที่ลงทะเบียนกับร้านนี้ (เครื่องที่ย้ายร้าน / ปิดใช้งาน / ไม่ได้ลงทะเบียน ไม่นับ)
+    if (!registeredKeys.has(`${r.shopid}|${r.terminalid}`)) continue;
+
     const lastSeen = Number(r.last_seen) || 0;
     const isOnline = r.logged_in === true && now - lastSeen <= ONLINE_WINDOW_SEC;
-
-    s.total_terminals++;
     if (isOnline) s.online_terminals++;
+
     // rows เรียง last_seen ล่าสุดก่อน -> แถวแรกของร้าน = เครื่องล่าสุด
     if (s.last_seen === null) {
       s.last_seen = lastSeen || null;
