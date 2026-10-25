@@ -136,6 +136,7 @@ exports.dashboardDataList = async (req, res) => {
     );
 
     const dashboardDataListLogic = new Promise(async (resolve, reject) => {
+
         try {
 
         await validateApiKey(req); // ตรวจสอบ API key
@@ -145,6 +146,10 @@ exports.dashboardDataList = async (req, res) => {
         const shopid = req.body.shopid || "";
 
         const timestamp = await convertTotimestamp(req); // แปลง timestamp
+
+        // ===================== Online / Offline helpers =====================
+        const ORDERTYPE_ONLINE = 0;   // ออเดอร์จาก ZooApp (openApi)
+        const ORDERTYPE_OFFLINE = 1;  // ออเดอร์จากเครื่อง POS
 
         if (!shopid || !checkString(shopid)) {
             return reject({ status: 400, message: "Invalid request" });
