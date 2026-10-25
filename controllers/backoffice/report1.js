@@ -317,11 +317,13 @@ exports.reporttotalincome = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      // รายได้รวม: นับเฉพาะ Offline (เครื่อง POS) ; ออเดอร์ Online (ordertype = 0) แสดงในตารางอย่างเดียว ไม่นับรวม
       const query_total_income = await db("orderinfo")
       .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
       .where("shopid", shopid)
       .andWhere({status: true})
       .andWhere("orderispay",">" ,0)
+      .andWhereNot("ordertype", ORDERTYPE_ONLINE)
       .andWhere(function () {
         this.where("ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("ordertimestamp", "<", timestamp.endTimestamp);
