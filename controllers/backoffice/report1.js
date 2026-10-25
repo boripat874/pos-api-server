@@ -317,16 +317,26 @@ exports.reporttotalincome = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
-      // รายได้รวม: นับเฉพาะ Offline (เครื่อง POS) ; ออเดอร์ Online (ordertype = 0) แสดงในตารางอย่างเดียว ไม่นับรวม
+      // รายได้รวม: นับเฉพาะ Offline (เครื่อง POS) ที่มีใบเสร็จแล้ว
+      // - ออเดอร์ Online (ordertype = 0) แสดงในตารางอย่างเดียว ไม่นับรวม
+      // - ต้องมีใบเสร็จใน receiptinfo ที่ระบุประเภทการชำระ (paymentType <> 0)
+      // - ใช้ whereExists แทน join เพื่อไม่ให้ยอดซ้ำ กรณี 1 ออเดอร์มีหลายใบเสร็จ
       const query_total_income = await db("orderinfo")
       .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
-      .where("shopid", shopid)
-      .andWhere({status: true})
-      .andWhere("orderispay",">" ,0)
-      .andWhereNot("ordertype", ORDERTYPE_ONLINE)
+      .where("orderinfo.shopid", shopid)
+      .andWhere("orderinfo.status", true)
+      .andWhere("orderinfo.orderispay", ">", 0)
+      .andWhereNot("orderinfo.ordertype", ORDERTYPE_ONLINE)
+      .whereExists(function () {
+        this.select(db.raw("1"))
+        .from("receiptinfo")
+        .whereRaw("receiptinfo.ordernumber = orderinfo.ordernumber")
+        .whereNotNull("receiptinfo.paymentType")
+        .whereNot("receiptinfo.paymentType", 0);
+      })
       .andWhere(function () {
-        this.where("ordertimestamp", ">=", timestamp.startTimestamp)
-        .andWhere("ordertimestamp", "<", timestamp.endTimestamp);
+        this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+        .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
       })
 
       resolve({

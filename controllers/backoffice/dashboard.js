@@ -160,14 +160,22 @@ exports.dashboardDataList = async (req, res) => {
         }
 
         const query_total_income = await db("orderinfo")
-            .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
-            .where("shopid", shopid)
-            .andWhere("status", true)
-            .andWhere("orderispay",">" ,0)
-            .andWhere(function () {
-                this.where("ordertimestamp", ">=", timestamp.startTimestamp)
-                .andWhere("ordertimestamp", "<", timestamp.endTimestamp);
-            })
+                  .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
+                  .where("orderinfo.shopid", shopid)
+                  .andWhere("orderinfo.status", true)
+                  .andWhere("orderinfo.orderispay", ">", 0)
+                  .andWhereNot("orderinfo.ordertype", ORDERTYPE_ONLINE)
+                  .whereExists(function () {
+                    this.select(db.raw("1"))
+                    .from("receiptinfo")
+                    .whereRaw("receiptinfo.ordernumber = orderinfo.ordernumber")
+                    .whereNotNull("receiptinfo.paymentType")
+                    .whereNot("receiptinfo.paymentType", 0);
+                  })
+                  .andWhere(function () {
+                    this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+                    .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
+                  })
         
         const query_total_creditcard = await db("orderinfo")
             .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
