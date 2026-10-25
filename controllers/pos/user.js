@@ -89,6 +89,8 @@ exports.signin = async(req, res) => {
   );
 
   let userid_ = null;
+  let terminalid_ = null;
+  let shopid_ = null;
   
   const signinLogic = new Promise(async (resolve, reject) => {
     try {
@@ -96,33 +98,82 @@ exports.signin = async(req, res) => {
       // ตรวจสอบ API key
       await validateApiKey(req); 
 
-      if(!req.body.uinfologinname){
-        reject({ status: 402, message: "Username not required" });
+      const { uinfologinname, uinfologinpass } = req.body;
+      const terminalid = String(req.body.terminalid || "").trim();
+
+      if(!uinfologinname){
+        return reject({ status: 402, message: "Username not required" });
       }
 
-      if(!req.body.uinfologinpass){
-          reject({ status: 402, message: "Password not required" });
+      if(!uinfologinpass){
+        return reject({ status: 402, message: "Password not required" });
+      }
+
+      // เครื่อง POS ต้องส่ง terminalid มาด้วย
+      if(!terminalid || !checkString(terminalid)){
+        return reject({ status: 400, message: "terminalid is required" });
+      }
+
+      // terminalid ต้องลงทะเบียนไว้ใน Backoffice (เมนู ตั้งค่าเครื่อง POS) และเปิดใช้งาน
+      const terminal = await db("terminalinfo")
+        .select("terminalid", "shopid", "status")
+        .where({ terminalid })
+        .first();
+
+      if (!terminal) {
+        return reject({ status: 403, message: "This terminal is not registered." });
+      }
+
+      if (terminal.status !== true) {
+        return reject({ status: 403, message: "This terminal is disabled." });
+      }
+
+      const shop = await db("shopinfo")
+        .select("shopid", "ugroupid")
+        .where({ shopid: terminal.shopid, status: true })
+        .first();
+
+      if (!shop) {
+        return reject({ status: 403, message: "The shop of this terminal is not active." });
       }
 
       const user = await db("userinfo")
       .select("*")
-      .where({ "uinfologinname": req.body.uinfologinname })
-      .andWhere({ "uinfologinpass": req.body.uinfologinpass })
+      .where({ "uinfologinname": uinfologinname })
+      .andWhere({ "uinfologinpass": uinfologinpass })
       .andWhere({ "status": true })
       .first();
 
       if (!user) {
-        reject({ status: 402, message: "User not found" });
+        return reject({ status: 402, message: "User not found" });
       }
+
+      // ล็อกอินได้เฉพาะเครื่อง POS ของร้านตัวเอง
+      //   Manager / Employee : shopid ของผู้ใช้ต้องตรงกับร้านของเครื่อง
+      //   Owner              : ร้านของเครื่องต้องอยู่ในกลุ่มร้านของตัวเอง
+      //   Admin              : ได้ทุกร้าน
+      const allowed =
+        user.level === "Admin" ||
+        (user.level === "Owner" && user.ugroupid === shop.ugroupid) ||
+        user.shopid === terminal.shopid;
+
+      if (!allowed) {
+        return reject({ status: 403, message: "This user cannot sign in on this terminal (different shop)." });
+      }
+
       const tokenId = uuid(); 
       userid_ = user.uinfoid;
-      ugroupid_ = user.ugroupid || 'admin';
+      terminalid_ = terminal.terminalid;
+      shopid_ = terminal.shopid;
+      const ugroupid_ = user.ugroupid || 'admin';
 
       const token = jwt.sign(
         {
           jti: tokenId,
           uinfoid: userid_,
           ugroupid: ugroupid_,
+          shopid: shopid_,
+          terminalid: terminalid_,
         },
         process.env.JWT_SECRET,
         { expiresIn: "1d" }
@@ -130,11 +181,14 @@ exports.signin = async(req, res) => {
 
       resolve({
         token: token,
+        shopid: shopid_,
+        terminalid: terminalid_,
+        level: user.level,
         message:"Sign in successfully"
       });
 
     } catch (error) {
-      reject(error, res);
+      reject(error);
     }
   });
 
@@ -147,7 +201,7 @@ exports.signin = async(req, res) => {
         id: uuid(),
         uinfoid: userid_,
         ipaddress: req.ip,
-        details: "เข้าสู่ระบบ",
+        details: `เข้าสู่ระบบ (เครื่อง ${terminalid_})`,
         type: "POS",
       })
 

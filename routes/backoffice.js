@@ -14,6 +14,7 @@ const promotions = require("../controllers/backoffice/promotions")
 const login = require("../controllers/backoffice/login")
 const headerdata = require("../controllers/backoffice/headerData");
 const managedataInpro = require("../controllers/backoffice/managedataInpro");
+const terminalinfo = require("../controllers/backoffice/terminal");
  
 // headerdata
 router.get("/backoffice/headerdatashopslist",headerdata.shopslist);
@@ -121,6 +122,11 @@ router.post("/backoffice/exportproducts",managedataInpro.exportproducts);
 router.post("/backoffice/importproducts",managedataInpro.productcreateMultiple);
 router.post("/backoffice/exportusers",managedataInpro.exportusers);
 router.post("/backoffice/importusers",managedataInpro.usercreateMultiple);
+
+// ตั้งค่าเครื่อง POS (Admin)
+router.get("/backoffice/terminallist",terminalinfo.terminallist);
+router.post("/backoffice/terminalcreate",terminalinfo.terminalcreate);
+router.put("/backoffice/terminalupdate",terminalinfo.terminalupdate);
 
 module.exports = router
 

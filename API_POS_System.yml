@@ -5,7 +5,7 @@ info:
     API for POS System (เครื่อง POS) และ Backoffice
     - /api/pos/* : เครื่อง POS
     - /api/backoffice/* : เว็บ Backoffice (อยู่ท้ายเอกสาร)
-  version: 1.0.4
+  version: 1.0.5
 servers:
   - url: "http://10.10.46.2:80"
     description: Development Server
@@ -62,8 +62,13 @@ paths:
                 message: Unauthorized
   /api/pos/signin:
     post:
-      summary: Login
-      description: Login to the system.
+      summary: Login (เครื่อง POS)
+      description: |
+        ล็อกอินได้เฉพาะเครื่อง POS ของร้านตัวเอง
+        - terminalid ต้องลงทะเบียนไว้ใน Backoffice > ตั้งค่าเครื่อง POS และเปิดใช้งาน
+        - Manager / Employee: ร้านของผู้ใช้ต้องตรงกับร้านของเครื่อง
+        - Owner: ร้านของเครื่องต้องอยู่ในกลุ่มร้านของตัวเอง ; Admin: ได้ทุกร้าน
+        - token ที่ได้มี shopid และ terminalid ของเครื่อง
       tags:
         - Verify identity
       security:
@@ -81,53 +86,37 @@ paths:
                 uinfologinpass:
                   type: string
                   description: รหัสผ่าน
+                terminalid:
+                  type: string
+                  description: รหัสเครื่อง POS
               required:
                 - uinfologinname
                 - uinfologinpass
+                - terminalid
             example:
-              uinfologinname: admin
-              uinfologinpass: admin123
+              uinfologinname: somsri
+              uinfologinpass: "******"
+              terminalid: RTP71887
       responses:
         "200":
           description: Success response
           content:
             application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-                    description: Token
-                  message:
-                    type: string
-                    description: ข้อความอธิบายสถานะ
               example:
-                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                shopid: POS_SHOP_001
+                terminalid: RTP71887
                 message: Sign in successfully
         "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    description: Error message
-              example:
-                message: Invalid request
+          description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
         "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    description: Error message
-              example:
-                message: Unauthorized
+          description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
+        "402":
+          description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: เครื่องไม่ได้ลงทะเบียน / ถูกปิดใช้งาน / ร้านไม่เปิดใช้งาน / ผู้ใช้ไม่ใช่ร้านของเครื่องนี้ (ดู message)
+        "500":
+          description: Internal Server Error
   /api/pos/signout:
     get:
       summary: Logout
@@ -6852,6 +6841,188 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "500":
+          description: Internal Server Error
+  /api/backoffice/terminallist:
+    get:
+      summary: รายการเครื่อง POS (terminalid ของแต่ละร้าน)
+      description: เฉพาะสิทธิ์ Admin ; online = มี heartbeat ภายใน 5 นาที
+      tags:
+        - Backoffice - POS Terminal
+      security:
+        - api_key: []
+        - Authorization: []
+      parameters:
+        - name: search
+          in: query
+          required: false
+          description: คำค้นหา
+          schema:
+            type: string
+          example: ""
+        - name: shopid
+          in: query
+          required: false
+          description: กรองตามร้าน
+          schema:
+            type: string
+          example: ""
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              example:
+                total: 1
+                result:
+                  - terminalid: RTP71887
+                    shopid: POS_SHOP_001
+                    shopnameth: ร้านปอนด์
+                    terminalname: เครื่อง POS 1
+                    details: ""
+                    status: true
+                    online: true
+                    last_seen: "2026-10-25 15:20"
+                    create_at: "2026-10-25 15:00"
+                    update_at: "2026-10-25 15:00"
+        "400":
+          description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
+        "401":
+          description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
+        "402":
+          description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only
+        "500":
+          description: Internal Server Error
+  /api/backoffice/terminalcreate:
+    post:
+      summary: เพิ่มเครื่อง POS
+      description: เฉพาะสิทธิ์ Admin
+      tags:
+        - Backoffice - POS Terminal
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                terminalid:
+                  type: string
+                  description: "รหัสเครื่อง POS (a-z, 0-9, _ , -)"
+                shopid:
+                  type: string
+                  description: ร้านที่เครื่องนี้สังกัด
+                terminalname:
+                  type: string
+                  description: ชื่อเรียกเครื่อง
+                details:
+                  type: string
+                  description: รายละเอียด
+                status:
+                  type: boolean
+                  description: true = เปิดใช้งาน
+              required:
+                - terminalid
+                - shopid
+            example:
+              terminalid: RTP71899
+              shopid: POS_SHOP_002
+              terminalname: เครื่อง POS 6
+              details: ""
+              status: true
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              example:
+                terminalid: RTP71899
+                shopid: POS_SHOP_002
+                message: Create terminal Success
+        "400":
+          description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
+        "401":
+          description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
+        "402":
+          description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only
+        "404":
+          description: shopid not found
+        "409":
+          description: terminalid already exists
+        "500":
+          description: Internal Server Error
+  /api/backoffice/terminalupdate:
+    put:
+      summary: แก้ไขเครื่อง POS
+      description: |
+        เฉพาะสิทธิ์ Admin ; ส่งเฉพาะ field ที่ต้องการแก้
+        ย้ายร้าน / ปิดใช้งาน / เปลี่ยน terminalid -> สถานะ online ของเครื่องเดิมเป็น offline ทันที
+      tags:
+        - Backoffice - POS Terminal
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                terminalid:
+                  type: string
+                  description: รหัสเครื่องที่จะแก้
+                newterminalid:
+                  type: string
+                  description: รหัสเครื่องใหม่ (ถ้าต้องการเปลี่ยน)
+                shopid:
+                  type: string
+                  description: ย้ายไปร้าน
+                terminalname:
+                  type: string
+                  description: ชื่อเรียกเครื่อง
+                details:
+                  type: string
+                  description: รายละเอียด
+                status:
+                  type: boolean
+                  description: "true = เปิด, false = ปิดใช้งาน"
+              required:
+                - terminalid
+            example:
+              terminalid: RTP71899
+              newterminalid: RTP71899
+              shopid: POS_SHOP_001
+              terminalname: เครื่อง POS 11
+              details: ""
+              status: false
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              example:
+                terminalid: RTP71899
+                message: Update terminal Success
+        "400":
+          description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
+        "401":
+          description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
+        "402":
+          description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only
+        "404":
+          description: terminalid / shopid not found
+        "409":
+          description: newterminalid already exists
         "500":
           description: Internal Server Error
 components:
