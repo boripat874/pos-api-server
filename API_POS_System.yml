@@ -96,7 +96,7 @@ paths:
             example:
               uinfologinname: somsri
               uinfologinpass: "******"
-              terminalid: RTP71887
+              terminalid: RTP71000
       responses:
         "200":
           description: Success response
@@ -105,7 +105,8 @@ paths:
               example:
                 token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
                 shopid: POS_SHOP_001
-                terminalid: RTP71887
+                terminalid: RTP71000
+                level: Employee
                 message: Sign in successfully
         "400":
           description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
