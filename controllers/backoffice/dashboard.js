@@ -259,7 +259,15 @@ exports.dashboardDataList = async (req, res) => {
                 .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
 
-        const product_sales = await productSalesQuery(timestamp).andWhere("orderinfo.shopid", shopid);
+        const product_sales = await productSalesQuery(timestamp)
+            .andWhere("orderinfo.shopid", shopid)
+            .whereExists(function () {
+                this.select(db.raw("1"))
+                .from("receiptinfo")
+                .whereRaw("receiptinfo.ordernumber = orderinfo.ordernumber")
+                .whereNotNull("receiptinfo.paymentType")
+                .whereNot("receiptinfo.paymentType", 0);
+            });
         const result_product_sales = mapProductSales(product_sales);
 
         const terminal = (await getTerminalStatus([shopid])).get(shopid);
