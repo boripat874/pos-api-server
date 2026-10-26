@@ -1077,7 +1077,7 @@ exports.ordercreate = (req, res) => {
           pickupnow,
           starttime,
           endtime,
-          ordertype: 1,
+          ordertype: 0,
           
         });
   
