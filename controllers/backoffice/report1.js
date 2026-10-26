@@ -226,6 +226,31 @@ exports.reportorderlist = (req, res) => {
 const ORDERTYPE_ONLINE = 0;   // ออเดอร์จาก ZooApp (openApi)
 const ORDERTYPE_OFFLINE = 1;  // ออเดอร์จากเครื่อง POS
 
+// orderstatus ที่ถือว่ายกเลิก / ชำระเงินไม่สำเร็จ -> ไม่นับในยอดรวม
+//   3 = ยกเลิกโดยระบบ, 4 = ยกเลิกโดยลูกค้า, 8 = ยกเลิกโดยผู้ขาย, 9 = การจ่ายเงินล้มเหลว
+const CANCELLED_ORDERSTATUS = [3, 4, 8, 9];
+
+// ไม่นับออเดอร์ที่ยกเลิก (orderstatus เป็น null ยังนับตามเดิม)
+function notCancelled(qb) {
+  qb.where(function () {
+    this.whereNull("orderinfo.orderstatus").orWhereNotIn("orderinfo.orderstatus", CANCELLED_ORDERSTATUS);
+  });
+}
+
+// ยอดรวมในรายงาน: เฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว (ระบุประเภทการชำระ) และไม่ถูกยกเลิก
+// ใช้ whereExists เพื่อไม่ให้นับซ้ำ กรณี 1 ออเดอร์มีหลายใบเสร็จ
+function offlineWithReceipt(qb) {
+  qb.whereNot("orderinfo.ordertype", ORDERTYPE_ONLINE)
+    .whereExists(function () {
+      this.select(db.raw("1"))
+        .from("receiptinfo")
+        .whereRaw("receiptinfo.ordernumber = orderinfo.ordernumber")
+        .whereNotNull("receiptinfo.paymentType")
+        .whereNot("receiptinfo.paymentType", 0);
+    })
+    .modify(notCancelled);
+}
+
 // ราคาสุทธิ: online จาก openApi ไม่ได้บันทึก orderpricenet -> ใช้ ราคารวม - ส่วนลด
 const NET_PRICE_SQL =
   "COALESCE(orderinfo.orderpricenet, GREATEST(COALESCE(orderinfo.ordertotalprice, 0) - COALESCE(orderinfo.ordertotaldiscount, 0), 0))";
@@ -318,23 +343,14 @@ exports.reporttotalincome = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
-      // รายได้รวม: นับเฉพาะ Offline (เครื่อง POS) ที่มีใบเสร็จแล้ว
-      // - ออเดอร์ Online (ordertype = 0) แสดงในตารางอย่างเดียว ไม่นับรวม
-      // - ต้องมีใบเสร็จใน receiptinfo ที่ระบุประเภทการชำระ (paymentType <> 0)
-      // - ใช้ whereExists แทน join เพื่อไม่ให้ยอดซ้ำ กรณี 1 ออเดอร์มีหลายใบเสร็จ
+      // รายได้รวม: เฉพาะ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+      // (ออเดอร์ Online แสดงในตารางอย่างเดียว ไม่นับรวม)
       const query_total_income = await db("orderinfo")
       .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
       .where("orderinfo.shopid", shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay", ">", 0)
-      .andWhereNot("orderinfo.ordertype", ORDERTYPE_ONLINE)
-      .whereExists(function () {
-        this.select(db.raw("1"))
-        .from("receiptinfo")
-        .whereRaw("receiptinfo.ordernumber = orderinfo.ordernumber")
-        .whereNotNull("receiptinfo.paymentType")
-        .whereNot("receiptinfo.paymentType", 0);
-      })
+      .modify(offlineWithReceipt)
       .andWhere(function () {
         this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
@@ -403,8 +419,9 @@ exports.reporttotalcreditcard = (req, res) => {
         "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 1
       })
-      .andWhere({status: true})
+      .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
       .andWhere(function () {
         this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
@@ -473,8 +490,9 @@ exports.reporttotalpromptpay = (req, res) => {
         "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 2
       })
-      .andWhere({status: true})
+      .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
       .andWhere(function () {
         this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
@@ -543,8 +561,9 @@ exports.reporttotalewallet = (req, res) => {
         "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 3
       })
-      .andWhere({status: true})
+      .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
       .andWhere(function () {
         this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
@@ -613,8 +632,9 @@ exports.reporttotalcash = (req, res) => {
         "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 4
       })
-      .andWhere({status: true})
+      .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
       .andWhere(function () {
         this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
@@ -677,11 +697,13 @@ exports.reporttotalorder = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      // บิลที่ขายได้ทั้งหมด: เฉพาะ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
       const query_total_order = await db("orderinfo")
-      .count("orderid as total_order")
-      .where("shopid", shopid)
-      .andWhere({status: true})
-      .andWhere("orderinfo.orderispay",">" ,0)
+      .count("orderinfo.orderid as total_order")
+      .where("orderinfo.shopid", shopid)
+      .andWhere("orderinfo.status", true)
+      .andWhere("orderinfo.orderispay", ">", 0)
+      .modify(offlineWithReceipt)
       .andWhere(function () {
         this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
@@ -743,12 +765,14 @@ exports.reportproductsell = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      // สินค้าขายออกทั้งหมด: เฉพาะ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
       const query_total_product = await db("orderinfo")
       .join("orderdetail", "orderinfo.orderid", "orderdetail.orderid")
       .sum("orderdetail.qty as total_product")
       .where("orderinfo.shopid", shopid)
-      .andWhere({status: true})
-      .andWhere("orderinfo.orderispay",">" ,0)
+      .andWhere("orderinfo.status", true)
+      .andWhere("orderinfo.orderispay", ">", 0)
+      .modify(offlineWithReceipt)
       .andWhere(function () {
         this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
