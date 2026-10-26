@@ -180,7 +180,8 @@ exports.reportorderlist = (req, res) => {
             ordertotalprice: totalprice,
             vat7pc: toNumber(item.vat7pc),
             ordertotaldiscount: discount,
-            orderpricenet: netPrice(item.orderpricenet, totalprice, discount),
+            // orderpricenet: netPrice(item.orderpricenet, totalprice, discount),
+            orderpricenet: Number(item.orderpricenet),
             // ไม่มีประเภทการชำระ -> null (หน้าเว็บแสดง "-")
             paymenttype: isOnline ? toPaymentType(item.orderpaytype) : toPaymentType(item.paymenttype),
             urlfile: item.urlfile || null
