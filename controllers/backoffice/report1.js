@@ -105,10 +105,18 @@ exports.reportorderlist = (req, res) => {
       // console.log("timeend >>" + req.query.timeend);
       // console.log(timestamp);
 
-      const shopid = req.body.shopid;
+      const shopid = String(req.body.shopid || "");
 
-      const orderlist = await db("orderinfo")
+      if (!shopid || !checkString(shopid)) {
+        return reject({ status: 400, message: "Invalid request" });
+      }
+
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // ออเดอร์ของร้าน (orderinfo) : ไม่ดึงเมื่อเลือก "online"
+      const orderlist = shopid === SHOP_ONLINE ? [] : await db("orderinfo")
       .select(
+        "shopinfo.shopnameth as shopnameth",
         "orderinfo.ordertimestamp as ordertimestamp",
         "orderinfo.ordernumber as ordernumber",
         "orderinfo.ordertotalprice as ordertotalprice",
@@ -122,7 +130,8 @@ exports.reportorderlist = (req, res) => {
       )
       // .join("shopinfo", "shopinfo.shopid", "orderinfo.shopid")
       .leftJoin("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-      .where("orderinfo.shopid", shopid)
+      .leftJoin("shopinfo", "shopinfo.shopid", "orderinfo.shopid")
+      .modify(shopScope, shopid)
       .andWhere({"orderinfo.status": true})
       .andWhere("orderinfo.orderispay",">" ,0)
       .andWhere(function () {
@@ -174,6 +183,7 @@ exports.reportorderlist = (req, res) => {
         return {
             // ...item, // Keep other properties like shop names, product names etc.
             ordertimestamp: formattedTimestamp, // Use the formatted timestamp
+            shopnameth: item.shopnameth || "-",
             ordernumber: item.ordernumber,
             ordertype: isOnline ? ORDERTYPE_ONLINE : ORDERTYPE_OFFLINE,
             orderchannel: isOnline ? "Online" : "Offline", // สถานะรายการสั่งซื้อ
@@ -189,9 +199,10 @@ exports.reportorderlist = (req, res) => {
         };
       });
 
-      // ออเดอร์ Online จากระบบภายนอก (POST /api/orderinsert) เก็บแยกตาราง onlineorderinfo
+      // ออเดอร์ Online จากระบบภายนอก (POST /api/pos/orderinsert) เก็บแยกตาราง onlineorderinfo
+      // ไม่ผูกกับร้าน -> แสดงเฉพาะเมื่อเลือก "online" หรือ "all"
       // แสดงเป็น ordertype = 0 ; paymenttype เป็นข้อความตามที่ส่งมา (payment.channel)
-      const onlineRows = await db("onlineorderinfo as o")
+      const onlineRows = (shopid !== SHOP_ONLINE && shopid !== SHOP_ALL) ? [] : await db("onlineorderinfo as o")
       .leftJoin(
         db("onlineorderdetail")
           .select("onlineorderid", db.raw("SUM(quantity * unitprice) as gross"), db.raw("SUM(discount) as discount"))
@@ -204,14 +215,14 @@ exports.reportorderlist = (req, res) => {
         "o.ordernumber", "o.receiptnumber", "o.referencenumber", "o.buyername", "o.ordertimestamp", "o.orderstatus",
         "o.deliveryoption", "o.netamount", "o.paymentchannel", "d.gross", "d.discount"
       )
-      .where("o.shopid", shopid)
-      .andWhere("o.status", true)
+      .where("o.status", true)
       .andWhere("o.ordernumber", "ILIKE", `%${search}%`)
       .andWhere("o.ordertimestamp", ">=", timestamp.startTimestamp)
       .andWhere("o.ordertimestamp", "<", timestamp.endTimestamp);
 
       const onlineResults = onlineRows.map((o) => ({
         ordertimestamp: date.format(new Date(Number(o.ordertimestamp) * 1000), "YYYY-MM-DD HH:mm"),
+        shopnameth: "Online",
         ordernumber: o.ordernumber,
         ordertype: ORDERTYPE_ONLINE,
         orderchannel: "Online",
@@ -272,6 +283,26 @@ exports.reportorderlist = (req, res) => {
 // ===================== Online / Offline helpers =====================
 const ORDERTYPE_ONLINE = 0;   // ออเดอร์จาก ZooApp (openApi)
 const ORDERTYPE_OFFLINE = 1;  // ออเดอร์จากเครื่อง POS
+
+// ตัวเลือกร้านพิเศษในรายงานการสั่งซื้อ (เฉพาะ Admin)
+//   "all"    = ทุกร้าน (รวมออเดอร์ Online จาก /api/pos/orderinsert ในตาราง)
+//   "online" = เฉพาะออเดอร์ Online จาก /api/pos/orderinsert (ไม่คำนวณยอดรวม)
+const SHOP_ALL = "all";
+const SHOP_ONLINE = "online";
+
+async function requireAdminForScope(req, shopid) {
+  if (shopid !== SHOP_ALL && shopid !== SHOP_ONLINE) return;
+  const { uinfoid } = jwt.verify(req.headers.authorization.split(" ")[1], process.env.JWT_SECRET);
+  const user = await db("userinfo").select("level").where({ uinfoid, status: true }).first();
+  if (!user || user.level !== "Admin") {
+    throw { status: 403, message: "Admin only" };
+  }
+}
+
+// กรองตามร้าน ("all" = ไม่กรอง)
+function shopScope(qb, shopid) {
+  if (shopid !== SHOP_ALL) qb.where("orderinfo.shopid", shopid);
+}
 
 // orderstatus ที่ถือว่ายกเลิก / ชำระเงินไม่สำเร็จ -> ไม่นับในยอดรวม
 //   3 = ยกเลิกโดยระบบ, 4 = ยกเลิกโดยลูกค้า, 8 = ยกเลิกโดยผู้ขาย, 9 = การจ่ายเงินล้มเหลว
@@ -433,11 +464,18 @@ exports.reporttotalincome = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // "online" = ออเดอร์จาก /api/pos/orderinsert แสดงในตารางอย่างเดียว ไม่คำนวณยอดรวม
+      if (shopid === SHOP_ONLINE) {
+        return resolve({ total_income: 0 });
+      }
+
       // รายได้รวม: เฉพาะ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
       // (ออเดอร์ Online แสดงในตารางอย่างเดียว ไม่นับรวม)
       const query_total_income = await db("orderinfo")
       .select(db.raw(`SUM(${NET_PRICE_SQL}) as total_income`))
-      .where("orderinfo.shopid", shopid)
+      .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay", ">", 0)
       .modify(offlineWithReceipt)
@@ -502,13 +540,20 @@ exports.reporttotalcreditcard = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // "online" = ออเดอร์จาก /api/pos/orderinsert แสดงในตารางอย่างเดียว ไม่คำนวณยอดรวม
+      if (shopid === SHOP_ONLINE) {
+        return resolve({ total_creditcard: 0 });
+      }
+
       const query_total_creditcard = await db("orderinfo")
       .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
       .sum("orderinfo.orderpricenet as total_creditcard")
       .where({
-        "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 1
       })
+      .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
       .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
@@ -573,13 +618,20 @@ exports.reporttotalpromptpay = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // "online" = ออเดอร์จาก /api/pos/orderinsert แสดงในตารางอย่างเดียว ไม่คำนวณยอดรวม
+      if (shopid === SHOP_ONLINE) {
+        return resolve({ total_promptpay: 0 });
+      }
+
       const query_total_promptpay = await db("orderinfo")
       .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
       .sum("orderinfo.orderpricenet as total_promptpay")
       .where({
-        "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 2
       })
+      .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
       .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
@@ -644,13 +696,20 @@ exports.reporttotalewallet = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // "online" = ออเดอร์จาก /api/pos/orderinsert แสดงในตารางอย่างเดียว ไม่คำนวณยอดรวม
+      if (shopid === SHOP_ONLINE) {
+        return resolve({ total_ewallet: 0 });
+      }
+
       const query_total_ewallet = await db("orderinfo")
       .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
       .sum("orderinfo.orderpricenet as total_ewallet")
       .where({
-        "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 3
       })
+      .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
       .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
@@ -715,13 +774,20 @@ exports.reporttotalcash = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // "online" = ออเดอร์จาก /api/pos/orderinsert แสดงในตารางอย่างเดียว ไม่คำนวณยอดรวม
+      if (shopid === SHOP_ONLINE) {
+        return resolve({ total_cash: 0 });
+      }
+
       const query_total_cash = await db("orderinfo")
       .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
       .sum("orderinfo.orderpricenet as total_cash")
       .where({
-        "orderinfo.shopid":shopid,
         "receiptinfo.paymentType": 4
       })
+      .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay",">" ,0)
       .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
@@ -787,10 +853,17 @@ exports.reporttotalorder = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // "online" = ออเดอร์จาก /api/pos/orderinsert แสดงในตารางอย่างเดียว ไม่คำนวณยอดรวม
+      if (shopid === SHOP_ONLINE) {
+        return resolve({ total_order: 0 });
+      }
+
       // บิลที่ขายได้ทั้งหมด: เฉพาะ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
       const query_total_order = await db("orderinfo")
       .count("orderinfo.orderid as total_order")
-      .where("orderinfo.shopid", shopid)
+      .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay", ">", 0)
       .modify(offlineWithReceipt)
@@ -855,11 +928,18 @@ exports.reportproductsell = (req, res) => {
         return reject({ status: 400, message: "Invalid request" });
       }
 
+      await requireAdminForScope(req, shopid); // "all" / "online" เฉพาะ Admin
+
+      // "online" = ออเดอร์จาก /api/pos/orderinsert แสดงในตารางอย่างเดียว ไม่คำนวณยอดรวม
+      if (shopid === SHOP_ONLINE) {
+        return resolve({ total_product: 0 });
+      }
+
       // สินค้าขายออกทั้งหมด: เฉพาะ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
       const query_total_product = await db("orderinfo")
       .join("orderdetail", "orderinfo.orderid", "orderdetail.orderid")
       .sum("orderdetail.qty as total_product")
-      .where("orderinfo.shopid", shopid)
+      .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
       .andWhere("orderinfo.orderispay", ">", 0)
       .modify(offlineWithReceipt)

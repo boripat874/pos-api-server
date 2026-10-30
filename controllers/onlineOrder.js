@@ -1,12 +1,12 @@
 // =====================================================================
-// POST /api/orderinsert  — รับออเดอร์ Online จากระบบภายนอก
+// POST /api/pos/orderinsert  — รับออเดอร์ Online จากระบบภายนอก
+//   ตรวจสอบ X-API-KEY และ token จากการ login (Authorization: Bearer)
 //   เก็บแยกจาก order หลัก (orderinfo) ลงตาราง onlineorderinfo + onlineorderdetail
-//   ไม่เก็บ buyerName (ข้อมูลส่วนบุคคล)
-//   ร้านของออเดอร์: body.shopid -> ร้านเจ้าของ X-API-KEY -> ร้านของ productCode ใน items
+//   ไม่ผูกกับร้าน ; แสดงเฉพาะในรายงานการสั่งซื้อ เมื่อเลือก "Online" / "ทั้งหมด"
 // =====================================================================
 const { db } = require("../db/postgresql");
 const { uuid } = require("uuidv4");
-const { checkString, validateApiKey, handleError, eventlogOpenAPI } = require("../modules/fun");
+const { validateApiKey, checkAuthorizetion, handleError, eventlog } = require("../modules/fun");
 
 require("dotenv").config();
 
@@ -14,31 +14,6 @@ const timeout = 60000;
 
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const str = (v, max = 255) => (v === undefined || v === null ? null : String(v).trim().slice(0, max));
-
-// หา shopid ของออเดอร์
-async function resolveShopId(req, items) {
-  const bodyShop = str(req.body.shopid, 100);
-  if (bodyShop) {
-    if (!checkString(bodyShop)) throw { status: 400, message: "shopid is invalid" };
-    const shop = await db("shopinfo").select("shopid").where({ shopid: bodyShop, status: true }).first();
-    if (!shop) throw { status: 404, message: "shopid not found" };
-    return bodyShop;
-  }
-
-  // API key ของร้านใดร้านหนึ่ง
-  const key = req.headers["x-api-key"] || "";
-  const byKey = await db("shopinfo").select("shopid").where({ apikey: key, status: true });
-  if (byKey.length === 1) return byKey[0].shopid;
-
-  // productCode ตรงกับสินค้าของร้านเดียว
-  const codes = [...new Set(items.map((i) => String(i.productCode || "")).filter(Boolean))];
-  if (codes.length) {
-    const shops = await db("productinfo").distinct("shopid").whereIn("productid", codes).andWhere({ status: true });
-    if (shops.length === 1) return shops[0].shopid;
-  }
-
-  throw { status: 400, message: "shopid is required (cannot determine shop from API key or productCode)" };
-}
 
 function validate(body) {
   const errors = [];
@@ -70,14 +45,14 @@ exports.orderinsert = (req, res) => {
   );
 
   const logic = (async () => {
-    await validateApiKey(req);
+    await validateApiKey(req);       // ตรวจสอบ API key
+    await checkAuthorizetion(req);   // ตรวจสอบ token จากการ login
 
     const body = req.body || {};
     const errors = validate(body);
     if (errors.length) throw { status: 400, message: errors.join(", ") };
 
     const items = body.items;
-    const shopid = await resolveShopId(req, items);
     const ordernumber = str(body.orderNumber);
 
     const exists = await db("onlineorderinfo").select("onlineorderid").where({ ordernumber }).first();
@@ -90,10 +65,10 @@ exports.orderinsert = (req, res) => {
     await db.transaction(async (trx) => {
       await trx("onlineorderinfo").insert({
         onlineorderid,
-        shopid,
         ordernumber,
         receiptnumber: str(body.receiptNumber),
         referencenumber: str(body.referenceNumber),
+        buyername: str(body.buyerName),
         orderdatetime: body.orderDateTime,                                   // PostgreSQL เก็บเป็น timestamptz (รองรับ microsecond)
         ordertimestamp: Math.floor(Date.parse(body.orderDateTime) / 1000),   // epoch วินาที ใช้กรองช่วงเวลา
         orderstatus: str(body.orderStatus, 50),
@@ -121,17 +96,18 @@ exports.orderinsert = (req, res) => {
       );
     });
 
-    return { orderNumber: ordernumber, shopid, message: "Insert order Success" };
+    return { orderNumber: ordernumber, message: "Insert order Success" };
   })();
 
   Promise.race([logic, timeoutPromise])
     .then(async (data) => {
-      await eventlogOpenAPI(req, `รับออเดอร์ Online "${data.orderNumber}"`);
+      await eventlog(req, `รับออเดอร์ Online "${data.orderNumber}"`, "POS");
       res.json(data);
     })
     .catch((error) => {
       if (error && error.status) {
-        res.status(error.status).json({ message: error.message });
+        const msg = typeof error.message === "string" ? error.message : "Unauthorized";
+        res.status(error.status).json({ message: msg });
       } else if (error && error.message === "Request timed out") {
         res.status(402).json({ message: "Request timed out" });
       } else if (error && error.code === "23505") {

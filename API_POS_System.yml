@@ -5,7 +5,7 @@ info:
     API for POS System (เครื่อง POS) และ Backoffice
     - /api/pos/* : เครื่อง POS
     - /api/backoffice/* : เว็บ Backoffice (อยู่ท้ายเอกสาร)
-  version: 1.0.6
+  version: 1.0.7
 servers:
   - url: "http://10.10.46.2:80"
     description: Development Server
@@ -1194,16 +1194,18 @@ paths:
                 message: Unauthorized
   /api/pos/orderinsert:
     post:
-      summary: Online order insert
+      summary: รับออเดอร์ Online จากระบบภายนอก
       description: |
-        รับออเดอร์ Online จากระบบภายนอก เก็บแยกจาก order หลัก (ตาราง onlineorderinfo / onlineorderdetail)
-        - แสดงในรายงานการสั่งซื้อของ Backoffice เป็น Online (ordertype = 0) และไม่นับรวมในยอดรวม
-        - ร้านของออเดอร์: shopid ใน body -> ร้านเจ้าของ X-API-KEY -> ร้านของ productCode ใน items
+        เก็บแยกจาก order หลัก (ตาราง onlineorderinfo / onlineorderdetail) และไม่ผูกกับร้าน
+        - ต้องมี X-API-KEY และ token จาก /api/pos/signin
+        - แสดงเฉพาะในรายงานการสั่งซื้อของ Backoffice เมื่อ Admin เลือก Online หรือ ทั้งหมด
+        - ไม่นับรวมในยอดรวม และไม่แสดงใน Dashboard
         - orderNumber ซ้ำ -> 409
       tags:
         - Order
       security:
         - api_key: []
+        - Authorization: []
       requestBody:
         required: true
         content:
@@ -1211,9 +1213,6 @@ paths:
             schema:
               type: object
               properties:
-                shopid:
-                  type: string
-                  description: เลข Shop (ไม่บังคับ ถ้าหาจาก API key / productCode ได้)
                 orderNumber:
                   type: string
                   description: เลข Order (ห้ามซ้ำ)
@@ -1228,61 +1227,33 @@ paths:
                   description: ชื่อผู้ซื้อ
                 orderDateTime:
                   type: string
-                  description: วันเวลา Order รูปแบบ ISO 8601 พร้อม timezone
+                  description: วันเวลา Order (ISO 8601 พร้อม timezone)
                 orderStatus:
                   type: string
-                  description: สถานะ Order เช่น COMPLETED
+                  description: สถานะ Order
                 deliveryOption:
                   type: string
-                  description: วิธีรับสินค้า เช่น PICKUP
+                  description: วิธีรับสินค้า
                 netAmount:
                   type: number
                   description: ยอดสุทธิ
                 items:
                   type: array
+                  description: "รายการสินค้า (productCode, productName, quantity, unitPrice, discount)"
                   items:
                     type: object
-                    properties:
-                      productCode:
-                        type: string
-                        description: รหัสสินค้า
-                      productName:
-                        type: string
-                        description: ชื่อสินค้า
-                      quantity:
-                        type: number
-                        description: จำนวน
-                      unitPrice:
-                        type: number
-                        description: ราคาต่อหน่วย
-                      discount:
-                        type: number
-                        description: ส่วนลด (ไม่ส่ง = 0)
-                    required:
-                      - productCode
-                      - quantity
-                      - unitPrice
                 payment:
                   type: object
-                  properties:
-                    channel:
-                      type: string
-                      description: ช่องทางชำระ (ข้อความ) เช่น Credit Card
-                    time:
-                      type: string
-                      description: เวลาชำระ ISO 8601
-                    transactionNumber:
-                      type: string
-                      description: เลขธุรกรรม
+                  description: "ข้อมูลการชำระ (channel เป็นข้อความ, time, transactionNumber)"
               required:
                 - orderNumber
                 - orderDateTime
                 - netAmount
                 - items
             example:
-              orderNumber: "OID2026102713064212222"
+              orderNumber: OID2026102713064212222
               receiptNumber: "02000005"
-              referenceNumber: "0225691027000005"
+              referenceNumber: 0225691027000005
               buyerName: TestNuttinan Test
               orderDateTime: "2026-10-27T13:06:42.776061+07:00"
               orderStatus: COMPLETED
@@ -1309,26 +1280,18 @@ paths:
           content:
             application/json:
               example:
-                orderNumber: "OID2026102713064212222"
-                shopid: POS_SHOP_001
+                orderNumber: OID2026102713064212222
                 message: Insert order Success
         "400":
-          description: Invalid request (ดู message ว่า field ไหนไม่ถูกต้อง)
-          content:
-            application/json:
-              example:
-                message: "netAmount must be a number"
+          description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
         "401":
-          description: Unauthorized
-          content:
-            application/json:
-              example:
-                message: "Unauthorized"
-        "404":
-          description: shopid not found
+          description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
+        "402":
+          description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
         "409":
           description: orderNumber already exists
-  
+        "500":
+          description: Internal Server Error
   /api/pos/walletupdate:
     put:
       summary: Wallet update
@@ -4952,15 +4915,15 @@ paths:
           description: Internal Server Error
   /api/backoffice/reportorderlist:
     post:
-      summary: รายงานการสั่งซื้อ (Online + Offline)
+      summary: รายงานการสั่งซื้อ
       description: |
-        ordertype: 0 = Online, 1 = Offline (ต้องมีใบเสร็จ)
-        Online มาจาก 2 แหล่ง: orderinfo (ordertype = 0) และ onlineorderinfo (รับผ่าน POST /api/orderinsert)
-        paymenttype:
-        - Offline: ตัวเลข 1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด
-        - Online จาก /api/orderinsert: ข้อความตาม payment.channel เช่น Credit Card
-        - ไม่มีข้อมูล: null (หน้าเว็บแสดง -)
-        ออเดอร์ Online แสดงในตารางอย่างเดียว ไม่นับรวมในยอดรวม
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        ร้านปกติ: ออเดอร์ของร้าน (Offline ที่มีใบเสร็จ + Online ใน orderinfo ordertype = 0)
+        online: เฉพาะออเดอร์จาก /api/pos/orderinsert (shopnameth = Online)
+        all: ออเดอร์ทุกร้าน + ออเดอร์จาก /api/pos/orderinsert
+        paymenttype: Offline เป็นตัวเลข 1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด ; orderinsert เป็นข้อความตาม payment.channel ; ไม่มี = null
       tags:
         - Backoffice - Report
       security:
@@ -5004,7 +4967,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5015,9 +4978,10 @@ paths:
           content:
             application/json:
               example:
-                total: 3
+                total: 2
                 result:
                   - ordertimestamp: "2026-10-27 13:06"
+                    shopnameth: Online
                     ordernumber: OID2026102713064212222
                     ordertype: 0
                     orderchannel: Online
@@ -5032,17 +4996,8 @@ paths:
                     buyername: TestNuttinan Test
                     orderstatus: COMPLETED
                     deliveryoption: PICKUP
-                  - ordertimestamp: "2026-10-25 10:30"
-                    ordernumber: ON250001
-                    ordertype: 0
-                    orderchannel: Online
-                    ordertotalprice: 120
-                    vat7pc: 0
-                    ordertotaldiscount: 0
-                    orderpricenet: 120
-                    paymenttype: null
-                    urlfile: null
                   - ordertimestamp: "2026-10-25 11:00"
+                    shopnameth: ร้านปอนด์
                     ordernumber: POS0001
                     ordertype: 1
                     orderchannel: Offline
@@ -5058,6 +5013,8 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
   /api/backoffice/reporttotalincome:
@@ -5099,7 +5056,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5117,8 +5074,16 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
+      description: |
+        นับเฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        online -> ยอดเป็น 0 (ไม่คำนวณยอดรวม)
   /api/backoffice/reporttotalcreditcard:
     post:
       summary: รายได้รวมจาก Credit Card
@@ -5158,7 +5123,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5176,8 +5141,16 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
+      description: |
+        นับเฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        online -> ยอดเป็น 0 (ไม่คำนวณยอดรวม)
   /api/backoffice/reporttotalpromptpay:
     post:
       summary: รายได้รวมจาก PromptPay
@@ -5217,7 +5190,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5235,8 +5208,16 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
+      description: |
+        นับเฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        online -> ยอดเป็น 0 (ไม่คำนวณยอดรวม)
   /api/backoffice/reporttotalewallet:
     post:
       summary: รายได้รวมจาก E-wallet
@@ -5276,7 +5257,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5294,8 +5275,16 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
+      description: |
+        นับเฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        online -> ยอดเป็น 0 (ไม่คำนวณยอดรวม)
   /api/backoffice/reporttotalcash:
     post:
       summary: รายได้รวมจากเงินสด
@@ -5335,7 +5324,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5353,8 +5342,16 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
+      description: |
+        นับเฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        online -> ยอดเป็น 0 (ไม่คำนวณยอดรวม)
   /api/backoffice/reporttotalorder:
     post:
       summary: จำนวนบิลทั้งหมด
@@ -5394,7 +5391,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5412,8 +5409,16 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
+      description: |
+        นับเฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        online -> ยอดเป็น 0 (ไม่คำนวณยอดรวม)
   /api/backoffice/reportproductsell:
     post:
       summary: จำนวนสินค้าที่ขายได้ทั้งหมด
@@ -5453,7 +5458,7 @@ paths:
               properties:
                 shopid:
                   type: string
-                  description: รหัสร้าน
+                  description: รหัสร้าน / all / online
               required:
                 - shopid
             example:
@@ -5471,8 +5476,16 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "403":
+          description: Admin only (all / online)
         "500":
           description: Internal Server Error
+      description: |
+        นับเฉพาะออเดอร์ Offline ที่มีใบเสร็จแล้ว และไม่ถูกยกเลิก
+        shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        - all = ทุกร้าน
+        - online = ออเดอร์จาก /api/pos/orderinsert
+        online -> ยอดเป็น 0 (ไม่คำนวณยอดรวม)
   /api/backoffice/receiptorder:
     post:
       summary: ใบเสร็จของออเดอร์ (ใช้สร้าง PDF)
