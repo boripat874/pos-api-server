@@ -1192,6 +1192,144 @@ paths:
                     description: Error message
               example:
                 message: Unauthorized
+  /api/orderinsert:
+    post:
+      summary: Online order insert
+      description: |
+        รับออเดอร์ Online จากระบบภายนอก เก็บแยกจาก order หลัก (ตาราง onlineorderinfo / onlineorderdetail)
+        - แสดงในรายงานการสั่งซื้อของ Backoffice เป็น Online (ordertype = 0) และไม่นับรวมในยอดรวม
+        - ร้านของออเดอร์: shopid ใน body -> ร้านเจ้าของ X-API-KEY -> ร้านของ productCode ใน items
+        - ไม่เก็บ buyerName
+        - orderNumber ซ้ำ -> 409
+      tags:
+        - Order
+      security:
+        - api_key: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shopid:
+                  type: string
+                  description: เลข Shop (ไม่บังคับ ถ้าหาจาก API key / productCode ได้)
+                orderNumber:
+                  type: string
+                  description: เลข Order (ห้ามซ้ำ)
+                receiptNumber:
+                  type: string
+                  description: เลขใบเสร็จ
+                referenceNumber:
+                  type: string
+                  description: เลขอ้างอิง
+                buyerName:
+                  type: string
+                  description: ชื่อผู้ซื้อ (รับได้ แต่ระบบไม่บันทึก)
+                orderDateTime:
+                  type: string
+                  description: วันเวลา Order รูปแบบ ISO 8601 พร้อม timezone
+                orderStatus:
+                  type: string
+                  description: สถานะ Order เช่น COMPLETED
+                deliveryOption:
+                  type: string
+                  description: วิธีรับสินค้า เช่น PICKUP
+                netAmount:
+                  type: number
+                  description: ยอดสุทธิ
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      productCode:
+                        type: string
+                        description: รหัสสินค้า
+                      productName:
+                        type: string
+                        description: ชื่อสินค้า
+                      quantity:
+                        type: number
+                        description: จำนวน
+                      unitPrice:
+                        type: number
+                        description: ราคาต่อหน่วย
+                      discount:
+                        type: number
+                        description: ส่วนลด (ไม่ส่ง = 0)
+                    required:
+                      - productCode
+                      - quantity
+                      - unitPrice
+                payment:
+                  type: object
+                  properties:
+                    channel:
+                      type: string
+                      description: ช่องทางชำระ (ข้อความ) เช่น Credit Card
+                    time:
+                      type: string
+                      description: เวลาชำระ ISO 8601
+                    transactionNumber:
+                      type: string
+                      description: เลขธุรกรรม
+              required:
+                - orderNumber
+                - orderDateTime
+                - netAmount
+                - items
+            example:
+              orderNumber: "OID2026102713064212222"
+              receiptNumber: "02000005"
+              referenceNumber: "0225691027000005"
+              buyerName: TestNuttinan Test
+              orderDateTime: "2026-10-27T13:06:42.776061+07:00"
+              orderStatus: COMPLETED
+              deliveryOption: PICKUP
+              netAmount: 123.0
+              items:
+                - productCode: SKU114
+                  productName: ตุ๊กตาอาร์ททอย
+                  quantity: 1
+                  unitPrice: 122.0
+                  discount: 0.0
+                - productCode: SKU-PP-01
+                  productName: ตุ๊กตาผึ้งน้อย
+                  quantity: 1
+                  unitPrice: 1.0
+                  discount: 0.0
+              payment:
+                channel: Credit Card
+                time: "2026-10-27T13:07:22+07:00"
+                transactionNumber: "11220914"
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              example:
+                orderNumber: "OID2026102713064212222"
+                shopid: POS_SHOP_001
+                message: Insert order Success
+        "400":
+          description: Invalid request (ดู message ว่า field ไหนไม่ถูกต้อง)
+          content:
+            application/json:
+              example:
+                message: "netAmount must be a number"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              example:
+                message: "Unauthorized"
+        "404":
+          description: shopid not found
+        "409":
+          description: orderNumber already exists
+
   /api/pos/walletupdate:
     put:
       summary: Wallet update

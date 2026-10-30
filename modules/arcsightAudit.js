@@ -37,6 +37,7 @@ const EVENTS = {
   "PUT /api/pos/productupdatestock": [2043, "POS product update stock"],
   "DELETE /api/pos/notificationdelete/:id": [2050, "POS notification delete"],
   "POST /api/pos/promotionslist": [2060, "POS promotion list"],
+  "POST /api/orderinsert": [2027, "POS online order insert"],
 
   // ---------------- Backoffice ----------------
   "POST /api/backoffice/signin": [3001, "Backoffice sign in"],
@@ -97,6 +98,7 @@ const EVENTS = {
   "POST /api/backoffice/importusers": [3105, "Backoffice import users"],
   "POST /api/backoffice/terminalcreate": [3110, "Backoffice POS terminal create"],
   "PUT /api/backoffice/terminalupdate": [3111, "Backoffice POS terminal update"],
+
 
   // ---------------- OpenAPI (ZooApp) ----------------
   "POST /api/shopdetail": [4001, "OpenAPI shop detail"],

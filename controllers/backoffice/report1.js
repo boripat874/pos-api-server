@@ -184,13 +184,59 @@ exports.reportorderlist = (req, res) => {
             orderpricenet: Number(item.orderpricenet),
             // ไม่มีประเภทการชำระ -> null (หน้าเว็บแสดง "-")
             paymenttype: isOnline ? toPaymentType(item.orderpaytype) : toPaymentType(item.paymenttype),
-            urlfile: item.urlfile || null
+            urlfile: item.urlfile || null,
+            _ts: Number(item.ordertimestamp) || 0
         };
       });
 
+      // ออเดอร์ Online จากระบบภายนอก (POST /api/orderinsert) เก็บแยกตาราง onlineorderinfo
+      // แสดงเป็น ordertype = 0 ; paymenttype เป็นข้อความตามที่ส่งมา (payment.channel)
+      const onlineRows = await db("onlineorderinfo as o")
+      .leftJoin(
+        db("onlineorderdetail")
+          .select("onlineorderid", db.raw("SUM(quantity * unitprice) as gross"), db.raw("SUM(discount) as discount"))
+          .groupBy("onlineorderid")
+          .as("d"),
+        "d.onlineorderid",
+        "o.onlineorderid"
+      )
+      .select(
+        "o.ordernumber", "o.receiptnumber", "o.referencenumber", "o.ordertimestamp", "o.orderstatus",
+        "o.deliveryoption", "o.netamount", "o.paymentchannel", "d.gross", "d.discount"
+      )
+      .where("o.shopid", shopid)
+      .andWhere("o.status", true)
+      .andWhere("o.ordernumber", "ILIKE", `%${search}%`)
+      .andWhere("o.ordertimestamp", ">=", timestamp.startTimestamp)
+      .andWhere("o.ordertimestamp", "<", timestamp.endTimestamp);
+
+      const onlineResults = onlineRows.map((o) => ({
+        ordertimestamp: date.format(new Date(Number(o.ordertimestamp) * 1000), "YYYY-MM-DD HH:mm"),
+        ordernumber: o.ordernumber,
+        ordertype: ORDERTYPE_ONLINE,
+        orderchannel: "Online",
+        ordertotalprice: o.gross !== null && o.gross !== undefined ? toNumber(o.gross) : toNumber(o.netamount),
+        vat7pc: 0,
+        ordertotaldiscount: toNumber(o.discount),                    // ไม่มีส่วนลด -> 0
+        orderpricenet: toNumber(o.netamount),
+        paymenttype: o.paymentchannel ? String(o.paymentchannel) : null, // text เช่น "Credit Card" ; ไม่มี -> null (หน้าเว็บแสดง "-")
+        urlfile: null,
+        receiptnumber: o.receiptnumber || null,
+        referencenumber: o.referencenumber || null,
+        orderstatus: o.orderstatus || null,
+        deliveryoption: o.deliveryoption || null,
+        _ts: Number(o.ordertimestamp) || 0,
+      }));
+
+      // รวมแล้วเรียงเวลาล่าสุดก่อน
+      const allResults = formattedResults
+        .concat(onlineResults)
+        .sort((a, b) => b._ts - a._ts)
+        .map(({ _ts, ...row }) => row);
+
       resolve({
-        total: formattedResults.length,
-        result: formattedResults,
+        total: allResults.length,
+        result: allResults,
       });
     
     } catch (error) {
@@ -279,7 +325,7 @@ async function onlineReceipt(ordernumber) {
     .select("orderid", "ordernumber", "ordertimestamp", "ordertotalprice", "ordertotaldiscount", "orderpricenet", "orderpaytype", "create_at")
     .where({ ordernumber, ordertype: ORDERTYPE_ONLINE })
     .first();
-  if (!order) return null;
+  if (!order) return onlineInsertReceipt(ordernumber);
 
   const orderDetails = await db("orderdetail")
     .select(
@@ -316,6 +362,48 @@ async function onlineReceipt(ordernumber) {
       productnameeng: item.productnameeng,
       qty: Number(item.qty),
       productprice: Number(item.productprice),
+    })),
+  };
+}
+
+// ใบเสร็จของออเดอร์ Online ที่รับผ่าน /api/orderinsert (ตาราง onlineorderinfo)
+async function onlineInsertReceipt(ordernumber) {
+  const o = await db("onlineorderinfo").select("*").where({ ordernumber, status: true }).first();
+  if (!o) return null;
+
+  const items = await db("onlineorderdetail")
+    .select("productcode", "productname", "quantity", "unitprice", "discount")
+    .where({ onlineorderid: o.onlineorderid })
+    .orderBy("linenumber", "asc");
+
+  const totalprice = items.reduce((t, it) => t + toNumber(it.quantity) * toNumber(it.unitprice), 0);
+  const discount = items.reduce((t, it) => t + toNumber(it.discount), 0);
+  const net = toNumber(o.netamount);
+
+  return {
+    receiptid: null,
+    ordernumber: o.ordernumber,
+    receiptnumber: o.receiptnumber || "-",
+    referencenumber: o.referencenumber || null,
+    paymenttype: o.paymentchannel || null,        // text
+    paymenttransactionnumber: o.paymenttransactionnumber || null,
+    receiptcash: net,
+    receiptchange: 0,
+    receiptdiscount: discount,
+    totalprice: items.length ? totalprice : net,
+    totalpricenet: net,
+    create_at: Number(o.ordertimestamp),
+    orderid: o.onlineorderid,
+    ordertype: ORDERTYPE_ONLINE,
+    orderchannel: "Online",
+    orderstatus: o.orderstatus || null,
+    deliveryoption: o.deliveryoption || null,
+    products: items.map((it) => ({
+      productid: it.productcode,
+      productnameth: it.productname || it.productcode,
+      productnameeng: it.productname || it.productcode,
+      qty: toNumber(it.quantity),
+      productprice: toNumber(it.unitprice),
     })),
   };
 }

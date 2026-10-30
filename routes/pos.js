@@ -12,6 +12,7 @@ const login = require("../controllers/pos/login")
 const order = require("../controllers/pos/order")
 const shopinfo = require("../controllers/pos/shop")
 const terminal = require("../controllers/pos/terminal")
+const { orderinsert } = require("../controllers/onlineOrder")
 
 // login
 router.get("/pos/checklogin",login.checklogin);
@@ -45,6 +46,7 @@ router.post("/pos/ordercreate",order.ordercreate);
 router.put("/pos/orderupdate", order.orderupdate);
 router.put("/pos/orderupdatestatus",order.orderupdatestatus);
 router.post("/pos/orderdelete", order.orderdelete);
+router.post("/pos/orderinsert",orderinsert); // ออเดอร์ Online จากระบบภายนอก 
 
 
 // Wallet
