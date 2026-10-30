@@ -201,7 +201,7 @@ exports.reportorderlist = (req, res) => {
         "o.onlineorderid"
       )
       .select(
-        "o.ordernumber", "o.receiptnumber", "o.referencenumber", "o.ordertimestamp", "o.orderstatus",
+        "o.ordernumber", "o.receiptnumber", "o.referencenumber", "o.buyername", "o.ordertimestamp", "o.orderstatus",
         "o.deliveryoption", "o.netamount", "o.paymentchannel", "d.gross", "d.discount"
       )
       .where("o.shopid", shopid)
@@ -223,6 +223,7 @@ exports.reportorderlist = (req, res) => {
         urlfile: null,
         receiptnumber: o.receiptnumber || null,
         referencenumber: o.referencenumber || null,
+        buyername: o.buyername || null,
         orderstatus: o.orderstatus || null,
         deliveryoption: o.deliveryoption || null,
         _ts: Number(o.ordertimestamp) || 0,
@@ -385,6 +386,7 @@ async function onlineInsertReceipt(ordernumber) {
     ordernumber: o.ordernumber,
     receiptnumber: o.receiptnumber || "-",
     referencenumber: o.referencenumber || null,
+    buyername: o.buyername || null,
     paymenttype: o.paymentchannel || null,        // text
     paymenttransactionnumber: o.paymenttransactionnumber || null,
     receiptcash: net,

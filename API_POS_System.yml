@@ -5,7 +5,7 @@ info:
     API for POS System (เครื่อง POS) และ Backoffice
     - /api/pos/* : เครื่อง POS
     - /api/backoffice/* : เว็บ Backoffice (อยู่ท้ายเอกสาร)
-  version: 1.0.5
+  version: 1.0.6
 servers:
   - url: "http://10.10.46.2:80"
     description: Development Server
@@ -1192,14 +1192,13 @@ paths:
                     description: Error message
               example:
                 message: Unauthorized
-  /api/orderinsert:
+  /api/pos/orderinsert:
     post:
       summary: Online order insert
       description: |
         รับออเดอร์ Online จากระบบภายนอก เก็บแยกจาก order หลัก (ตาราง onlineorderinfo / onlineorderdetail)
         - แสดงในรายงานการสั่งซื้อของ Backoffice เป็น Online (ordertype = 0) และไม่นับรวมในยอดรวม
         - ร้านของออเดอร์: shopid ใน body -> ร้านเจ้าของ X-API-KEY -> ร้านของ productCode ใน items
-        - ไม่เก็บ buyerName
         - orderNumber ซ้ำ -> 409
       tags:
         - Order
@@ -1226,7 +1225,7 @@ paths:
                   description: เลขอ้างอิง
                 buyerName:
                   type: string
-                  description: ชื่อผู้ซื้อ (รับได้ แต่ระบบไม่บันทึก)
+                  description: ชื่อผู้ซื้อ
                 orderDateTime:
                   type: string
                   description: วันเวลา Order รูปแบบ ISO 8601 พร้อม timezone
@@ -1329,7 +1328,7 @@ paths:
           description: shopid not found
         "409":
           description: orderNumber already exists
-
+  
   /api/pos/walletupdate:
     put:
       summary: Wallet update
@@ -4955,8 +4954,13 @@ paths:
     post:
       summary: รายงานการสั่งซื้อ (Online + Offline)
       description: |
-        ordertype: 0 = Online (จาก orderinfo), 1 = Offline (ต้องมีใบเสร็จ)
-        paymenttype: 1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด, null = ไม่มี
+        ordertype: 0 = Online, 1 = Offline (ต้องมีใบเสร็จ)
+        Online มาจาก 2 แหล่ง: orderinfo (ordertype = 0) และ onlineorderinfo (รับผ่าน POST /api/orderinsert)
+        paymenttype:
+        - Offline: ตัวเลข 1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด
+        - Online จาก /api/orderinsert: ข้อความตาม payment.channel เช่น Credit Card
+        - ไม่มีข้อมูล: null (หน้าเว็บแสดง -)
+        ออเดอร์ Online แสดงในตารางอย่างเดียว ไม่นับรวมในยอดรวม
       tags:
         - Backoffice - Report
       security:
@@ -5011,8 +5015,23 @@ paths:
           content:
             application/json:
               example:
-                total: 2
+                total: 3
                 result:
+                  - ordertimestamp: "2026-10-27 13:06"
+                    ordernumber: OID2026102713064212222
+                    ordertype: 0
+                    orderchannel: Online
+                    ordertotalprice: 123
+                    vat7pc: 0
+                    ordertotaldiscount: 0
+                    orderpricenet: 123
+                    paymenttype: Credit Card
+                    urlfile: null
+                    receiptnumber: "02000005"
+                    referencenumber: 0225691027000005
+                    buyername: TestNuttinan Test
+                    orderstatus: COMPLETED
+                    deliveryoption: PICKUP
                   - ordertimestamp: "2026-10-25 10:30"
                     ordernumber: ON250001
                     ordertype: 0
