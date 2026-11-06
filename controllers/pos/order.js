@@ -19,6 +19,7 @@ const {
   notification
 
 } = require("../../modules/fun"); // ใช้บันทึก log
+const SP = require("../../modules/splitPayment"); // แบ่งชำระ
 
 require("dotenv").config();
 
@@ -1328,6 +1329,17 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
             
           }
   
+        // แบ่งชำระ: แจ้งว่าชำระแล้วได้เมื่อชำระครบยอดเท่านั้น
+        if (Number(orderispay) === 1) {
+          const paying = await db("orderpayment")
+            .select("orderpaymentid")
+            .where({ ordernumber, paymentstatus: SP.PAY.PAYING })
+            .first();
+          if (paying) {
+            return reject({ status: 409, message: "split payment is not completed" });
+          }
+        }
+
         await db("orderinfo")
           .where({ ordernumber })
           .update({ 
@@ -1494,8 +1506,12 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           )
           .orderBy("receiptinfo.create_at", "desc");
   
+        // ข้อมูลการชำระ (แบ่งชำระ / คืนเงิน)
+        const paymentMap = await SP.loadPayments(receiptlist.map((r) => r.ordernumber));
+
         let receiptlist_data = [];
         receiptlist.forEach((element) => {
+          const pay = paymentMap.get(element.ordernumber);
           receiptlist_data.push({
 
             shopid: element.shopid,
@@ -1509,7 +1525,14 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
             receiptdiscount: Number(element.receiptdiscount),
             totalprice: Number(element.totalprice),
             urlfile: element.urlfile,
-            create_at: element.create_at
+            create_at: element.create_at,
+            paymentstatus: pay ? pay.paymentstatus : null,
+            paymentstatusname: pay ? pay.paymentstatusname : null,
+            isrefunded: pay ? pay.isrefunded : false,
+            refundreason: pay ? pay.refundreason : null,
+            refund_at: pay ? pay.refund_at : null,
+            paymenttext: pay ? pay.paymenttext : null,
+            payments: pay ? pay.payments : [],
           });
         });
   
@@ -1538,15 +1561,21 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
   };
 
   // receipt create ✓
+  //   บิลช่องทางเดียว (paymentType 1-4) : ต้องส่ง transactionid -> สร้างข้อมูลการชำระ 1 ส่วนให้อัตโนมัติ
+  //   บิลแบ่งชำระ (paymentType 5)       : ต้องชำระครบผ่าน /api/pos/paymentstart แล้ว
+  //                                       เงินสด/เงินทอนคิดจากส่วนที่ชำระสำเร็จ
   exports.receiptcreate = (req, res) => {
 
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Request timed out")), timeout)
     );
 
+    let logText = "เพิ่มใบเสร็จ";
+
     const receiptCreateLogic = new Promise(async (resolve, reject) => {
       try {
-        const { 
+        const body = req.body || {};
+        const {
           ordernumber,
           receiptnumber,
           paymentType,
@@ -1554,7 +1583,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           receiptchange,
           receiptdiscount,
           totalprice
-         } = req.body;
+         } = body;
 
         // Validate API key
         await validateApiKey(req);
@@ -1562,25 +1591,30 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
         // ตรวจสอบการอนุญาตเข้าสู่ระบบ
         await checkAuthorizetion(req);
 
-        if (!ordernumber == undefined) {
+        if (!ordernumber || !checkString(String(ordernumber))) {
           return reject({ status: 402, message: "ordernumber not required" });
         }
 
-        if (!receiptnumber == undefined) {
+        if (!receiptnumber || !checkString(String(receiptnumber))) {
           return reject({ status: 402, message: "receiptnumber not required" });
         }
 
-        if (!paymentType == undefined) {
+        if (paymentType === undefined || paymentType === null) {
           return reject({ status: 402, message: "paymentType not required" });
-        }else if(typeof paymentType !== "number"){
+        } else if (typeof paymentType !== "number") {
           return reject({ status: 402, message: "paymentType must be a number"})
+        } else if (!SP.PAYMENT_TYPES[paymentType] && paymentType !== SP.PAYMENTTYPE_SPLIT) {
+          return reject({ status: 402, message: "paymentType must be 1-5"})
         }
 
-        if(typeof receiptcash !== "number"){
+        const isSplit = paymentType === SP.PAYMENTTYPE_SPLIT;
+
+        // บิลแบ่งชำระ: เงินสด/เงินทอน server คิดเอง (ไม่ต้องส่ง)
+        if (!isSplit && typeof receiptcash !== "number") {
           return reject({ status: 402, message: "receiptcash must be a number"})
         }
 
-        if(typeof receiptchange !== "number"){
+        if (!isSplit && typeof receiptchange !== "number") {
           return reject({ status: 402, message: "receiptchange must be a number"})
         }
 
@@ -1590,6 +1624,17 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
 
         if(typeof totalprice !== "number"){
           return reject({ status: 402, message: "totalprice must be a number"})
+        }
+
+        // บิลช่องทางเดียวต้องมี transactionid
+        const transactionid = body.transactionid === undefined || body.transactionid === null ? "" : String(body.transactionid).trim();
+        if (!isSplit && (!transactionid || !SP.TXN_REGEX.test(transactionid))) {
+          return reject({ status: 402, message: "transactionid is required (a-z, 0-9, _ , - ; max 100)" });
+        }
+
+        const order = await db("orderinfo").select("ordernumber", "shopid", "terminalid").where({ ordernumber }).first();
+        if (!order) {
+          return reject({ status: 402, message: "ordernumber not found" });
         }
 
         const db_receiptnumber = await db("receiptinfo")
@@ -1604,21 +1649,111 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           });
         }
 
-       await db("receiptinfo")
-          .insert({
-            receiptid: uuid(),
-            ordernumber,
-            receiptnumber,
-            paymentType,  
-            receiptcash,
-            receiptchange,
-            receiptdiscount,
-            totalprice
-          });
+        const net = SP.toCents(totalprice) - SP.toCents(receiptdiscount);
+        const now = Math.floor(Date.now() / 1000);
+        const receiptid = uuid();
+
+        await db.transaction(async (trx) => {
+
+          const heads = await trx("orderpayment").where({ ordernumber }).forUpdate();
+          if (heads.some((h) => Number(h.paymentstatus) === SP.PAY.REFUNDED)) {
+            throw { status: 409, message: "order has been refunded" };
+          }
+
+          let cash = receiptcash;
+          let change = receiptchange;
+          let storedType = paymentType;
+
+          if (isSplit) {
+
+            const paying = heads.find((h) => Number(h.paymentstatus) === SP.PAY.PAYING);
+            if (paying) {
+              throw { status: 409, message: "split payment is not completed" };
+            }
+            const paid = heads.find((h) => Number(h.paymentstatus) === SP.PAY.PAID && h.issplit === true && !h.receiptid);
+            if (!paid) {
+              throw { status: 409, message: "completed split payment not found (use /api/pos/paymentstart)" };
+            }
+            if (SP.toCents(paid.totalamount) !== net) {
+              throw { status: 409, message: `totalprice - receiptdiscount (${SP.fromCents(net)}) does not match payment total (${Number(paid.totalamount)})` };
+            }
+
+            const lines = await trx("orderpaymentline")
+              .where({ orderpaymentid: paid.orderpaymentid, linestatus: SP.LINE.SUCCESS })
+              .orderBy("lineno", "asc");
+            const cashLines = lines.filter((l) => Number(l.paymenttype) === SP.PAYMENTTYPE_CASH);
+            cash = cashLines.reduce((t, l) => t + Number(l.cashreceived || 0), 0);
+            change = cashLines.reduce((t, l) => t + Number(l.cashchange || 0), 0);
+            // เปลี่ยนสัดส่วนจนเหลือช่องทางเดียว -> เก็บเป็นช่องทางนั้น
+            storedType = lines.length === 1 ? Number(lines[0].paymenttype) : SP.PAYMENTTYPE_SPLIT;
+
+            await trx("orderpayment")
+              .where({ orderpaymentid: paid.orderpaymentid })
+              .update({ receiptid, update_at: now });
+
+            logText = `เพิ่มใบเสร็จ (แบ่งชำระ) ${SP.paymentText(lines.map(SP.lineView)) || ""}`;
+
+          } else {
+
+            if (heads.some((h) => Number(h.paymentstatus) === SP.PAY.PAYING)) {
+              throw { status: 409, message: "split payment is in progress for this order (use paymentType 5)" };
+            }
+            if (heads.some((h) => Number(h.paymentstatus) === SP.PAY.PAID)) {
+              throw { status: 409, message: "order is already paid" };
+            }
+            const orderpaymentid = uuid();
+            await trx("orderpayment").insert({
+              orderpaymentid,
+              ordernumber,
+              shopid: order.shopid,
+              terminalid: order.terminalid,
+              uinfoid: null,
+              totalamount: SP.fromCents(Math.max(net, 0)),
+              paidamount: SP.fromCents(Math.max(net, 0)),
+              issplit: false,
+              paymentstatus: SP.PAY.PAID,
+              receiptid,
+              create_at: now,
+              update_at: now,
+            });
+            await trx("orderpaymentline").insert({
+              lineid: uuid(),
+              orderpaymentid,
+              ordernumber,
+              lineno: 1,
+              transactionid,
+              paymenttype: paymentType,
+              amount: SP.fromCents(Math.max(net, 0)),
+              cashreceived: paymentType === SP.PAYMENTTYPE_CASH ? receiptcash : 0,
+              cashchange: paymentType === SP.PAYMENTTYPE_CASH ? receiptchange : 0,
+              refno: body.refno ? String(body.refno).trim().slice(0, 100) : null,
+              linestatus: SP.LINE.SUCCESS,
+              paid_at: now,
+              create_at: now,
+              update_at: now,
+            });
+          }
+
+          await trx("receiptinfo")
+            .insert({
+              receiptid,
+              ordernumber,
+              receiptnumber,
+              paymentType: storedType,
+              receiptcash: cash,
+              receiptchange: change,
+              receiptdiscount,
+              totalprice
+            });
+
+          // ประเภทการชำระของออเดอร์ (5 = แบ่งชำระ)
+          await trx("orderinfo").where({ ordernumber }).update({ orderpaytype: String(storedType) });
+        });
 
         resolve({
           ordernumber,
           receiptnumber,
+          paymentType: isSplit ? SP.PAYMENTTYPE_SPLIT : paymentType,
           message: "Create receipt Success",
         });
       } catch (error) {
@@ -1629,7 +1764,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
     Promise.race([receiptCreateLogic, timeoutPromise])
       .then(async(data) => {
 
-        await eventlog(req, "เพิ่มใบเสร็จ","POS"); // บันทึก log
+        await eventlog(req, logText, "POS"); // บันทึก log
 
         res.json(data); // Send the response only once
       })
@@ -1638,6 +1773,8 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           res.status(error.status).json({ message: error.message });
         } else if (error.message === "Request timed out") {
           res.status(402).json({ message: "Request timed out" });
+        } else if (error.code === "23505") {
+          res.status(409).json({ message: "transactionid already exists" });
         } else {
           handleError(error, res);
         }
@@ -1677,9 +1814,28 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           });
         }
 
-        await db("receiptinfo")
-          .where({ ordernumber })
-          .delete();
+        await db.transaction(async (trx) => {
+          const receipts = await trx("receiptinfo").select("receiptid").where({ ordernumber });
+          const ids = receipts.map((r) => r.receiptid);
+
+          // ข้อมูลการชำระที่ผูกกับใบเสร็จนี้ (ยกเว้นที่คืนเงินแล้ว -> เก็บไว้เป็นประวัติ)
+          //   บิลช่องทางเดียว : ลบข้อมูลการชำระ (สร้างใหม่ตอน receiptcreate)
+          //   บิลแบ่งชำระ     : คงการชำระไว้ แค่ยกเลิกการผูกใบเสร็จ เพื่อออกใบเสร็จใหม่ได้
+          if (ids.length) {
+            await trx("orderpayment")
+              .whereIn("receiptid", ids)
+              .where({ issplit: false, paymentstatus: SP.PAY.PAID })
+              .delete();
+            await trx("orderpayment")
+              .whereIn("receiptid", ids)
+              .where({ issplit: true, paymentstatus: SP.PAY.PAID })
+              .update({ receiptid: null, update_at: Math.floor(Date.now() / 1000) });
+          }
+
+          await trx("receiptinfo")
+            .where({ ordernumber })
+            .delete();
+        });
 
         resolve({
           ordernumber,
@@ -1934,4 +2090,4 @@ exports.orderdelete = (req, res) => {
         handleError(error, res);
       }
     });
-};
+};

@@ -9,6 +9,7 @@ const jwt = require("jsonwebtoken"); // ใช้สําหรับสร้�
 
 const {checkAuthorizetion} = require("../../modules/fun");
 const {convertTotimestamp} = require("../../modules/convertTotimestamp");
+const SP = require("../../modules/splitPayment"); // แบ่งชำระ / คืนเงิน
 
 require("dotenv").config();
  
@@ -133,7 +134,16 @@ exports.reportorderlist = (req, res) => {
       .leftJoin("shopinfo", "shopinfo.shopid", "orderinfo.shopid")
       .modify(shopScope, shopid)
       .andWhere({"orderinfo.status": true})
-      .andWhere("orderinfo.orderispay",">" ,0)
+      .andWhere(function () {
+        // ชำระแล้ว หรือคืนเงินแล้ว (แสดงในรายงานว่า "คืนเงิน")
+        this.where("orderinfo.orderispay", ">", 0)
+        .orWhereExists(function () {
+          this.select(db.raw("1"))
+            .from("orderpayment")
+            .whereRaw("orderpayment.ordernumber = orderinfo.ordernumber")
+            .where("orderpayment.paymentstatus", SP.PAY.REFUNDED);
+        });
+      })
       .andWhere(function () {
         // Online (ordertype = 0): ไม่มีใบเสร็จใน receiptinfo -> ใช้ข้อมูลจาก orderinfo อย่างเดียว
         this.where("orderinfo.ordertype", ORDERTYPE_ONLINE)
@@ -154,6 +164,9 @@ exports.reportorderlist = (req, res) => {
         .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
       })
       .orderBy("orderinfo.ordertimestamp", "desc");
+
+      // ข้อมูลการชำระ (แบ่งชำระ / คืนเงิน)
+      const paymentMap = await SP.loadPayments(orderlist.map((item) => item.ordernumber));
 
       const formattedResults = orderlist.map(item => {
         let formattedTimestamp = "0000/00/00 00:00"; // Default value
@@ -177,6 +190,7 @@ exports.reportorderlist = (req, res) => {
         }
 
         const isOnline = Number(item.ordertype) === ORDERTYPE_ONLINE;
+        const pay = isOnline ? null : paymentMap.get(item.ordernumber);
         const totalprice = toNumber(item.ordertotalprice);
         const discount = toNumber(item.ordertotaldiscount); // ไม่มีส่วนลด -> 0
 
@@ -193,7 +207,8 @@ exports.reportorderlist = (req, res) => {
             // orderpricenet: netPrice(item.orderpricenet, totalprice, discount),
             orderpricenet: Number(item.orderpricenet),
             // ไม่มีประเภทการชำระ -> null (หน้าเว็บแสดง "-")
-            paymenttype: isOnline ? toPaymentType(item.orderpaytype) : toPaymentType(item.paymenttype),
+            paymenttype: isOnline ? toPaymentType(item.orderpaytype) : offlinePaymentType(item.paymenttype, pay),
+            ...paymentFields(pay),
             urlfile: item.urlfile || null,
             _ts: Number(item.ordertimestamp) || 0
         };
@@ -326,7 +341,8 @@ function offlineWithReceipt(qb) {
         .whereNotNull("receiptinfo.paymentType")
         .whereNot("receiptinfo.paymentType", 0);
     })
-    .modify(notCancelled);
+    .modify(notCancelled)
+    .modify(SP.notRefunded); // ไม่นับบิลที่คืนเงินแล้ว
 }
 
 // ราคาสุทธิ: online จาก openApi ไม่ได้บันทึก orderpricenet -> ใช้ ราคารวม - ส่วนลด
@@ -349,6 +365,36 @@ function netPrice(pricenet, totalprice, discount) {
 function toPaymentType(v) {
   const n = Number(v);
   return v !== null && v !== undefined && v !== "" && Number.isInteger(n) && n >= 1 && n <= 4 ? n : null;
+}
+
+// ประเภทการชำระของออเดอร์ Offline
+//   ช่องทางเดียว -> 1-4 (เหมือนเดิม) ; แบ่งชำระ -> ข้อความ เช่น "เงินสด 50 + PromptPay 50"
+function offlinePaymentType(receiptPaymentType, pay) {
+  if (pay && pay.payments.length > 1) return pay.paymenttext;
+  if (pay && pay.payments.length === 1) return pay.payments[0].paymenttype;
+  return toPaymentType(receiptPaymentType);
+}
+
+// ฟิลด์การชำระเพิ่มเติมในรายงาน / ใบเสร็จ
+function paymentFields(pay) {
+  return {
+    issplit: !!(pay && pay.payments.length > 1),
+    paymentstatus: pay ? pay.paymentstatus : null,       // 1 = ชำระครบ, 3 = คืนเงินแล้ว
+    paymentstatusname: pay ? pay.paymentstatusname : null,
+    isrefunded: !!(pay && pay.isrefunded),
+    refundreason: pay ? pay.refundreason : null,
+    refund_at: pay && pay.refund_at ? date.format(new Date(pay.refund_at * 1000), "YYYY-MM-DD HH:mm") : null,
+    payments: pay ? pay.payments.map((l) => ({
+      paymenttype: l.paymenttype,
+      paymenttypename: l.paymenttypename,
+      amount: l.amount,
+      cashreceived: l.cashreceived,
+      cashchange: l.cashchange,
+      transactionid: l.transactionid,
+      refno: l.refno,
+      linestatus: l.linestatus,
+    })) : [],
+  };
 }
 
 // ใบเสร็จของออเดอร์ online (สร้างจาก orderinfo + orderdetail)
@@ -547,11 +593,15 @@ exports.reporttotalcreditcard = (req, res) => {
         return resolve({ total_creditcard: 0 });
       }
 
-      const query_total_creditcard = await db("orderinfo")
-      .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-      .sum("orderinfo.orderpricenet as total_creditcard")
-      .where({
-        "receiptinfo.paymentType": 1
+      // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+      const query_total_creditcard = await SP.sumByPaymentTypeQuery(1, "total_creditcard")
+      .modify(shopScope, shopid)
+      .andWhere("orderinfo.status", true)
+      .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+      .andWhere(function () {
+        this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+        .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
       })
       .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
@@ -625,11 +675,15 @@ exports.reporttotalpromptpay = (req, res) => {
         return resolve({ total_promptpay: 0 });
       }
 
-      const query_total_promptpay = await db("orderinfo")
-      .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-      .sum("orderinfo.orderpricenet as total_promptpay")
-      .where({
-        "receiptinfo.paymentType": 2
+      // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+      const query_total_promptpay = await SP.sumByPaymentTypeQuery(2, "total_promptpay")
+      .modify(shopScope, shopid)
+      .andWhere("orderinfo.status", true)
+      .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+      .andWhere(function () {
+        this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+        .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
       })
       .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
@@ -703,11 +757,15 @@ exports.reporttotalewallet = (req, res) => {
         return resolve({ total_ewallet: 0 });
       }
 
-      const query_total_ewallet = await db("orderinfo")
-      .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-      .sum("orderinfo.orderpricenet as total_ewallet")
-      .where({
-        "receiptinfo.paymentType": 3
+      // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+      const query_total_ewallet = await SP.sumByPaymentTypeQuery(3, "total_ewallet")
+      .modify(shopScope, shopid)
+      .andWhere("orderinfo.status", true)
+      .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+      .andWhere(function () {
+        this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+        .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
       })
       .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
@@ -781,11 +839,15 @@ exports.reporttotalcash = (req, res) => {
         return resolve({ total_cash: 0 });
       }
 
-      const query_total_cash = await db("orderinfo")
-      .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-      .sum("orderinfo.orderpricenet as total_cash")
-      .where({
-        "receiptinfo.paymentType": 4
+      // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+      const query_total_cash = await SP.sumByPaymentTypeQuery(4, "total_cash")
+      .modify(shopScope, shopid)
+      .andWhere("orderinfo.status", true)
+      .andWhere("orderinfo.orderispay",">" ,0)
+      .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+      .andWhere(function () {
+        this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+        .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
       })
       .modify(shopScope, shopid)
       .andWhere("orderinfo.status", true)
@@ -1149,14 +1211,17 @@ exports.receiptorder = async (req, res) => {
         .where({ "orderdetail.orderid": orderid });
 
       const pricenet = Number(receiptRows[0].totalprice) - Number(receiptRows[0].receiptdiscount)
- 
+       // ข้อมูลการชำระ (แบ่งชำระ / คืนเงิน)
+      const pay = (await SP.loadPayments([receiptRows[0].ordernumber])).get(receiptRows[0].ordernumber);
+
       // สร้าง object หลักสำหรับใบเสร็จ
       const mainInfo = {
         ...receiptRows[0],
         receiptid: receiptRows[0].receiptid,
         ordernumber: receiptRows[0].ordernumber,
         receiptnumber: receiptRows[0].receiptnumber,
-        paymenttype: toPaymentType(receiptRows[0].paymenttype),
+        paymenttype: offlinePaymentType(receiptRows[0].paymenttype, pay),
+        ...paymentFields(pay),
         ordertype: ORDERTYPE_OFFLINE,
         orderchannel: "Offline",
         receiptcash: Number(receiptRows[0].receiptcash),

@@ -5,7 +5,7 @@ info:
     API for POS System (เครื่อง POS) และ Backoffice
     - /api/pos/* : เครื่อง POS
     - /api/backoffice/* : เว็บ Backoffice (อยู่ท้ายเอกสาร)
-  version: 1.0.7
+  version: 1.0.8
 servers:
   - url: "http://10.10.46.2:80"
     description: Development Server
@@ -1041,7 +1041,7 @@ paths:
   /api/pos/orderupdatestatus:
     put:
       summary: Order update status
-      description: Update the status of an order.
+      description: "Update the status of an order. ; แบ่งชำระ - ส่ง orderispay = 1 ได้เมื่อชำระครบแล้วเท่านั้น (ยังไม่ครบ -> 409)"
       tags:
         - Order
       security:
@@ -1364,7 +1364,7 @@ paths:
   /api/pos/receiptlist:
     post:
       summary: Receipt list
-      description: Retrieve a list of receipts.
+      description: "Retrieve a list of receipts. ; แต่ละใบเสร็จมี paymentstatus (1 ชำระครบ, 3 คืนเงินแล้ว), isrefunded, refundreason, refund_at, paymenttext และ payments (ช่องทาง ยอด transactionid refno linestatus)"
       tags:
         - Receipt
       security:
@@ -1500,7 +1500,7 @@ paths:
   /api/pos/receiptcreate:
     post:
       summary: Receipt create
-      description: Create a new receipt.
+      description: "สร้างใบเสร็จ ; paymentType 1-4 (บิลช่องทางเดียว) ต้องส่ง transactionid ระบบสร้างข้อมูลการชำระ 1 ส่วนให้ (ไม่ส่ง -> 402) ; paymentType 5 (แบ่งชำระ) ต้องชำระครบผ่าน /api/pos/paymentstart แล้ว และ totalprice - receiptdiscount ต้องเท่ากับยอดที่ชำระ ระบบคิด receiptcash / receiptchange จากส่วนที่เป็นเงินสดเอง ; orderinfo.orderpaytype ถูกบันทึกตาม paymentType"
       tags:
         - Receipt
       security:
@@ -1521,13 +1521,19 @@ paths:
                   description: เลข Receipt
                 paymentType:
                   type: number
-                  description: ประเภทการชําระเงิน
+                  description: "1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด, 5 = แบ่งชำระ"
+                transactionid:
+                  type: string
+                  description: เลขธุรกรรม (บังคับเมื่อ paymentType 1-4)
+                refno:
+                  type: string
+                  description: approval code จาก EDC (ไม่บังคับ)
                 receiptcash:
                   type: number
-                  description: จำนวนเงินที่ชําระ
+                  description: จำนวนเงินที่ชําระ (บังคับเมื่อ paymentType 1-4)
                 receiptchange:
                   type: number
-                  description: จำนวนเงินที่ทอน
+                  description: จำนวนเงินที่ทอน (บังคับเมื่อ paymentType 1-4)
                 receiptdiscount:
                   type: number
                   description: จำนวนเงินส่วนลด
@@ -1538,18 +1544,28 @@ paths:
                 - ordernumber
                 - receiptnumber
                 - paymentType
-                - receiptcash
-                - receiptchange
                 - receiptdiscount
                 - totalprice
-            example:
-              ordernumber: ON250401
-              receiptnumber: R250401
-              paymentType: 1
-              receiptcash: 200
-              receiptchange: 0
-              receiptdiscount: 100
-              totalprice: 100
+            examples:
+              single:
+                summary: บิลช่องทางเดียว
+                value:
+                  ordernumber: ON250401
+                  receiptnumber: R250401
+                  paymentType: 4
+                  transactionid: RTP71895-250401-1
+                  receiptcash: 200
+                  receiptchange: 100
+                  receiptdiscount: 0
+                  totalprice: 100
+              split:
+                summary: บิลแบ่งชำระ
+                value:
+                  ordernumber: ON250402
+                  receiptnumber: R250402
+                  paymentType: 5
+                  receiptdiscount: 0
+                  totalprice: 100
       responses:
         "200":
           description: Success response
@@ -1558,13 +1574,25 @@ paths:
               schema:
                 type: object
                 properties:
+                  ordernumber:
+                    type: string
+                    description: เลข Order
+                  receiptnumber:
+                    type: string
+                    description: เลข Receipt
+                  paymentType:
+                    type: number
+                    description: ประเภทการชำระ
                   message:
                     type: string
-                    description: Success message
+                    description: ข้อความ
               example:
-                message: Success
-        "400":
-          description: Invalid request
+                ordernumber: ON250401
+                receiptnumber: R250401
+                paymentType: 4
+                message: Create receipt Success
+        "402":
+          description: ข้อมูลไม่ครบ เช่น transactionid is required
           content:
             application/json:
               schema:
@@ -1572,11 +1600,9 @@ paths:
                 properties:
                   message:
                     type: string
-                    description: Error message
-              example:
-                message: Invalid request
-        "401":
-          description: Unauthorized
+                    description: ข้อความ
+        "409":
+          description: transactionid ซ้ำ / ออเดอร์ชำระแล้ว / แบ่งชำระยังไม่ครบ / ยอดไม่ตรง / ออเดอร์คืนเงินแล้ว
           content:
             application/json:
               schema:
@@ -1584,13 +1610,11 @@ paths:
                 properties:
                   message:
                     type: string
-                    description: Error message
-              example:
-                message: Unauthorized
+                    description: ข้อความ
   /api/pos/receiptdelete:
     post:
       summary: Receipt delete
-      description: Delete receipt.
+      description: "Delete receipt. ; ลบข้อมูลการชำระของบิลช่องทางเดียวด้วย ; บิลแบ่งชำระคงการชำระไว้ (ยกเลิกการผูกใบเสร็จ) เพื่อออกใบเสร็จใหม่ได้"
       tags:
         - Receipt
       security:
@@ -1651,6 +1675,1376 @@ paths:
                     description: Error message
               example:
                 message: Unauthorized
+  /api/pos/paymentstart:
+    post:
+      summary: เริ่มแบ่งชำระ (Split payment start)
+      description: "แบ่งชำระ 2-3 ส่วน ช่องทางห้ามซ้ำ ยอดรวมต้องเท่ากับยอดสุทธิของออเดอร์ (orderpricenet) และทุกส่วนต้องมี transactionid ; เครื่อง POS ต้องเป็นของร้านเดียวกับออเดอร์ ; ถ้ามีการชำระที่กำลังดำเนินการอยู่ จะส่งรายการเดิมกลับ (resumed = true) ; บิลช่องทางเดียวไม่ต้องเรียก API นี้ ให้ส่ง transactionid มากับ /api/pos/receiptcreate"
+      tags:
+        - Payment
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+                terminalid:
+                  type: string
+                  description: รหัสเครื่อง POS
+                lines:
+                  type: array
+                  description: "2-3 ส่วน"
+                  items:
+                    type: object
+                    properties:
+                      transactionid:
+                        type: string
+                        description: "เลขธุรกรรมของส่วนนี้ (เครื่อง POS สร้าง, ห้ามซ้ำ, a-z 0-9 _ - สูงสุด 100 ตัว)"
+                      paymenttype:
+                        type: number
+                        description: "1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด"
+                      amount:
+                        type: number
+                        description: ยอดของส่วนนี้ (ทศนิยมไม่เกิน 2 ตำแหน่ง)
+                    required:
+                      - transactionid
+                      - paymenttype
+                      - amount
+              required:
+                - ordernumber
+                - terminalid
+                - lines
+            example:
+              ordernumber: RTP71895261106091501
+              terminalid: RTP71895
+              lines:
+                - transactionid: RTP71895-261106091501-1
+                  paymenttype: 4
+                  amount: 50
+                - transactionid: RTP71895-261106091501-2
+                  paymenttype: 2
+                  amount: 50
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      orderpaymentid:
+                        type: string
+                        description: รหัสการชำระ
+                      ordernumber:
+                        type: string
+                        description: เลข Order
+                      issplit:
+                        type: boolean
+                        description: "true = แบ่งชำระ"
+                      paymentstatus:
+                        type: number
+                        description: "0 กำลังชำระ, 1 ชำระครบ, 2 ยกเลิกระหว่างชำระ, 3 ยกเลิก/คืนเงินแล้ว"
+                      paymentstatusname:
+                        type: string
+                        description: ชื่อสถานะ
+                      totalamount:
+                        type: number
+                        description: ยอดที่ต้องชำระ
+                      paidamount:
+                        type: number
+                        description: ยอดที่ชำระสำเร็จแล้ว
+                      remainingamount:
+                        type: number
+                        description: ยอดคงเหลือ
+                      paymenttype:
+                        type: number
+                        description: "5 = แบ่งชำระ (มีมากกว่า 1 ส่วน) หรือ 1-4"
+                      paymenttext:
+                        type: string
+                        description: "เช่น เงินสด 50 + PromptPay 50"
+                      receiptid:
+                        type: string
+                        description: ใบเสร็จที่ผูกกับการชำระ
+                      refundreason:
+                        type: string
+                        description: เหตุผลยกเลิก/คืนเงิน
+                      refund_at:
+                        type: number
+                        description: เวลาคืนเงิน (epoch วินาที)
+                      lines:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            lineno:
+                              type: number
+                              description: ลำดับ
+                            transactionid:
+                              type: string
+                              description: เลขธุรกรรม
+                            paymenttype:
+                              type: number
+                              description: "1-4"
+                            paymenttypename:
+                              type: string
+                              description: ชื่อช่องทาง
+                            amount:
+                              type: number
+                              description: ยอด
+                            cashreceived:
+                              type: number
+                              description: เงินที่รับ (เงินสด)
+                            cashchange:
+                              type: number
+                              description: เงินทอน (เงินสด)
+                            refno:
+                              type: string
+                              description: approval code จาก EDC
+                            linestatus:
+                              type: number
+                              description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                            linestatusname:
+                              type: string
+                              description: ชื่อสถานะ
+                            failreason:
+                              type: string
+                              description: เหตุผลที่ไม่สำเร็จ
+                            paid_at:
+                              type: number
+                              description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+                      message:
+                        type: string
+                        description: ข้อความ
+                  - type: object
+                    properties:
+                      resumed:
+                        type: boolean
+                        description: "true = มีการชำระค้างอยู่แล้ว ส่งรายการเดิมกลับ"
+              example:
+                orderpaymentid: "3f1c2a9e-1111-4c1d-9a55-0d6c2b1e7a10"
+                ordernumber: RTP71895261106091501
+                issplit: true
+                paymentstatus: 0
+                paymentstatusname: กำลังชำระ
+                totalamount: 100
+                paidamount: 0
+                remainingamount: 100
+                paymenttype: 5
+                paymenttext: "เงินสด 50 + PromptPay 50"
+                receiptid: null
+                refundreason: null
+                refund_at: null
+                lines:
+                  - lineno: 1
+                    transactionid: RTP71895-261106091501-1
+                    paymenttype: 4
+                    paymenttypename: เงินสด
+                    amount: 50
+                    cashreceived: 0
+                    cashchange: 0
+                    refno: null
+                    linestatus: 0
+                    linestatusname: รอชำระ
+                    failreason: null
+                    paid_at: null
+                  - lineno: 2
+                    transactionid: RTP71895-261106091501-2
+                    paymenttype: 2
+                    paymenttypename: PromptPay
+                    amount: 50
+                    cashreceived: 0
+                    cashchange: 0
+                    refno: null
+                    linestatus: 0
+                    linestatusname: รอชำระ
+                    failreason: null
+                    paid_at: null
+                message: Start payment Success
+                resumed: false
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "401":
+          description: API key / token ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "404":
+          description: ไม่พบข้อมูล
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "409":
+          description: สถานะไม่ถูกต้อง หรือ transactionid ซ้ำ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+  /api/pos/paymentstatus:
+    post:
+      summary: สถานะการชำระของออเดอร์
+      description: "ใช้ตอนเปิดเครื่องใหม่เพื่อชำระต่อ ; แสดงรายการที่ใช้งานอยู่ก่อน (กำลังชำระ > ชำระครบ > คืนเงินแล้ว > ยกเลิก)"
+      tags:
+        - Payment
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+              required:
+                - ordernumber
+            example:
+              ordernumber: RTP71895261106091501
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderpaymentid:
+                    type: string
+                    description: รหัสการชำระ
+                  ordernumber:
+                    type: string
+                    description: เลข Order
+                  issplit:
+                    type: boolean
+                    description: "true = แบ่งชำระ"
+                  paymentstatus:
+                    type: number
+                    description: "0 กำลังชำระ, 1 ชำระครบ, 2 ยกเลิกระหว่างชำระ, 3 ยกเลิก/คืนเงินแล้ว"
+                  paymentstatusname:
+                    type: string
+                    description: ชื่อสถานะ
+                  totalamount:
+                    type: number
+                    description: ยอดที่ต้องชำระ
+                  paidamount:
+                    type: number
+                    description: ยอดที่ชำระสำเร็จแล้ว
+                  remainingamount:
+                    type: number
+                    description: ยอดคงเหลือ
+                  paymenttype:
+                    type: number
+                    description: "5 = แบ่งชำระ (มีมากกว่า 1 ส่วน) หรือ 1-4"
+                  paymenttext:
+                    type: string
+                    description: "เช่น เงินสด 50 + PromptPay 50"
+                  receiptid:
+                    type: string
+                    description: ใบเสร็จที่ผูกกับการชำระ
+                  refundreason:
+                    type: string
+                    description: เหตุผลยกเลิก/คืนเงิน
+                  refund_at:
+                    type: number
+                    description: เวลาคืนเงิน (epoch วินาที)
+                  lines:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        lineno:
+                          type: number
+                          description: ลำดับ
+                        transactionid:
+                          type: string
+                          description: เลขธุรกรรม
+                        paymenttype:
+                          type: number
+                          description: "1-4"
+                        paymenttypename:
+                          type: string
+                          description: ชื่อช่องทาง
+                        amount:
+                          type: number
+                          description: ยอด
+                        cashreceived:
+                          type: number
+                          description: เงินที่รับ (เงินสด)
+                        cashchange:
+                          type: number
+                          description: เงินทอน (เงินสด)
+                        refno:
+                          type: string
+                          description: approval code จาก EDC
+                        linestatus:
+                          type: number
+                          description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                        linestatusname:
+                          type: string
+                          description: ชื่อสถานะ
+                        failreason:
+                          type: string
+                          description: เหตุผลที่ไม่สำเร็จ
+                        paid_at:
+                          type: number
+                          description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+                  message:
+                    type: string
+                    description: ข้อความ
+              example:
+                orderpaymentid: "3f1c2a9e-1111-4c1d-9a55-0d6c2b1e7a10"
+                ordernumber: RTP71895261106091501
+                issplit: true
+                paymentstatus: 0
+                paymentstatusname: กำลังชำระ
+                totalamount: 100
+                paidamount: 50
+                remainingamount: 50
+                paymenttype: 5
+                paymenttext: "เงินสด 50 + PromptPay 50"
+                receiptid: null
+                refundreason: null
+                refund_at: null
+                lines:
+                  - lineno: 1
+                    transactionid: RTP71895-261106091501-1
+                    paymenttype: 4
+                    paymenttypename: เงินสด
+                    amount: 50
+                    cashreceived: 60
+                    cashchange: 10
+                    refno: null
+                    linestatus: 1
+                    linestatusname: สำเร็จ
+                    failreason: null
+                    paid_at: 1793932501
+                  - lineno: 2
+                    transactionid: RTP71895-261106091501-2
+                    paymenttype: 2
+                    paymenttypename: PromptPay
+                    amount: 50
+                    cashreceived: 0
+                    cashchange: 0
+                    refno: null
+                    linestatus: 0
+                    linestatusname: รอชำระ
+                    failreason: null
+                    paid_at: null
+                message: null
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "401":
+          description: API key / token ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "404":
+          description: ไม่พบข้อมูล
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "409":
+          description: สถานะไม่ถูกต้อง หรือ transactionid ซ้ำ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+  /api/pos/paymentlineupdate:
+    put:
+      summary: บันทึกผลการชำระแต่ละส่วน
+      description: "เรียกทันทีหลังรับเงินหรือ EDC ตอบกลับ ; linestatus 1 = สำเร็จ, 2 = ไม่สำเร็จ (ใช้ได้กับส่วนที่รอชำระ) ; 4 = คืนเงินแล้ว (ใช้กับส่วนที่สำเร็จหลัง /api/pos/paymentcancel) ; เงินสดต้องส่ง cashreceived (>= amount) ระบบคิดเงินทอนให้ ; ส่งซ้ำด้วยสถานะเดิมจะตอบผลเดิม (duplicate = true) ไม่บวกยอดซ้ำ ; ยอดสำเร็จครบ -> paymentstatus = 1 อัตโนมัติ"
+      tags:
+        - Payment
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transactionid:
+                  type: string
+                  description: เลขธุรกรรมของส่วนที่ต้องการ
+                linestatus:
+                  type: number
+                  description: "1 สำเร็จ, 2 ไม่สำเร็จ, 4 คืนเงินแล้ว"
+                cashreceived:
+                  type: number
+                  description: เงินที่รับจากลูกค้า (เงินสด)
+                cashchange:
+                  type: number
+                  description: เงินทอน (ไม่บังคับ ถ้าส่งต้องถูกต้อง)
+                refno:
+                  type: string
+                  description: approval code จาก EDC (ไม่บังคับ)
+                failreason:
+                  type: string
+                  description: เหตุผลที่ไม่สำเร็จ (ไม่บังคับ)
+              required:
+                - transactionid
+                - linestatus
+            example:
+              transactionid: RTP71895-261106091501-1
+              linestatus: 1
+              cashreceived: 60
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      orderpaymentid:
+                        type: string
+                        description: รหัสการชำระ
+                      ordernumber:
+                        type: string
+                        description: เลข Order
+                      issplit:
+                        type: boolean
+                        description: "true = แบ่งชำระ"
+                      paymentstatus:
+                        type: number
+                        description: "0 กำลังชำระ, 1 ชำระครบ, 2 ยกเลิกระหว่างชำระ, 3 ยกเลิก/คืนเงินแล้ว"
+                      paymentstatusname:
+                        type: string
+                        description: ชื่อสถานะ
+                      totalamount:
+                        type: number
+                        description: ยอดที่ต้องชำระ
+                      paidamount:
+                        type: number
+                        description: ยอดที่ชำระสำเร็จแล้ว
+                      remainingamount:
+                        type: number
+                        description: ยอดคงเหลือ
+                      paymenttype:
+                        type: number
+                        description: "5 = แบ่งชำระ (มีมากกว่า 1 ส่วน) หรือ 1-4"
+                      paymenttext:
+                        type: string
+                        description: "เช่น เงินสด 50 + PromptPay 50"
+                      receiptid:
+                        type: string
+                        description: ใบเสร็จที่ผูกกับการชำระ
+                      refundreason:
+                        type: string
+                        description: เหตุผลยกเลิก/คืนเงิน
+                      refund_at:
+                        type: number
+                        description: เวลาคืนเงิน (epoch วินาที)
+                      lines:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            lineno:
+                              type: number
+                              description: ลำดับ
+                            transactionid:
+                              type: string
+                              description: เลขธุรกรรม
+                            paymenttype:
+                              type: number
+                              description: "1-4"
+                            paymenttypename:
+                              type: string
+                              description: ชื่อช่องทาง
+                            amount:
+                              type: number
+                              description: ยอด
+                            cashreceived:
+                              type: number
+                              description: เงินที่รับ (เงินสด)
+                            cashchange:
+                              type: number
+                              description: เงินทอน (เงินสด)
+                            refno:
+                              type: string
+                              description: approval code จาก EDC
+                            linestatus:
+                              type: number
+                              description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                            linestatusname:
+                              type: string
+                              description: ชื่อสถานะ
+                            failreason:
+                              type: string
+                              description: เหตุผลที่ไม่สำเร็จ
+                            paid_at:
+                              type: number
+                              description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+                      message:
+                        type: string
+                        description: ข้อความ
+                  - type: object
+                    properties:
+                      duplicate:
+                        type: boolean
+                        description: "true = ส่งซ้ำ"
+              example:
+                orderpaymentid: "3f1c2a9e-1111-4c1d-9a55-0d6c2b1e7a10"
+                ordernumber: RTP71895261106091501
+                issplit: true
+                paymentstatus: 0
+                paymentstatusname: กำลังชำระ
+                totalamount: 100
+                paidamount: 50
+                remainingamount: 50
+                paymenttype: 5
+                paymenttext: "เงินสด 50 + PromptPay 50"
+                receiptid: null
+                refundreason: null
+                refund_at: null
+                lines:
+                  - lineno: 1
+                    transactionid: RTP71895-261106091501-1
+                    paymenttype: 4
+                    paymenttypename: เงินสด
+                    amount: 50
+                    cashreceived: 60
+                    cashchange: 10
+                    refno: null
+                    linestatus: 1
+                    linestatusname: สำเร็จ
+                    failreason: null
+                    paid_at: 1793932501
+                  - lineno: 2
+                    transactionid: RTP71895-261106091501-2
+                    paymenttype: 2
+                    paymenttypename: PromptPay
+                    amount: 50
+                    cashreceived: 0
+                    cashchange: 0
+                    refno: null
+                    linestatus: 0
+                    linestatusname: รอชำระ
+                    failreason: null
+                    paid_at: null
+                message: Update payment line Success
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "401":
+          description: API key / token ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "404":
+          description: ไม่พบข้อมูล
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "409":
+          description: สถานะไม่ถูกต้อง หรือ transactionid ซ้ำ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+  /api/pos/paymentsplitupdate:
+    put:
+      summary: เปลี่ยนสัดส่วน / ช่องทางของยอดที่ยังไม่ชำระ
+      description: "ส่วนที่สำเร็จแล้วคงไว้ (แก้ยอดไม่ได้) ; ส่วนที่รอชำระถูกเปลี่ยนเป็นยกเลิก ; สร้างส่วนใหม่ตาม lines ด้วย transactionid ใหม่ ; ส่วนที่สำเร็จ + ส่วนใหม่ ต้องไม่เกิน 3 ส่วน ช่องทางไม่ซ้ำ และยอดรวมเท่ากับยอดที่ต้องชำระ"
+      tags:
+        - Payment
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+                lines:
+                  type: array
+                  description: ส่วนใหม่ของยอดที่ยังไม่ชำระ
+                  items:
+                    type: object
+                    properties:
+                      transactionid:
+                        type: string
+                        description: "เลขธุรกรรมของส่วนนี้ (เครื่อง POS สร้าง, ห้ามซ้ำ, a-z 0-9 _ - สูงสุด 100 ตัว)"
+                      paymenttype:
+                        type: number
+                        description: "1 = Credit Card, 2 = PromptPay, 3 = E-wallet, 4 = เงินสด"
+                      amount:
+                        type: number
+                        description: ยอดของส่วนนี้ (ทศนิยมไม่เกิน 2 ตำแหน่ง)
+                    required:
+                      - transactionid
+                      - paymenttype
+                      - amount
+              required:
+                - ordernumber
+                - lines
+            example:
+              ordernumber: RTP71895261106091501
+              lines:
+                - transactionid: RTP71895-261106091501-3
+                  paymenttype: 1
+                  amount: 50
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderpaymentid:
+                    type: string
+                    description: รหัสการชำระ
+                  ordernumber:
+                    type: string
+                    description: เลข Order
+                  issplit:
+                    type: boolean
+                    description: "true = แบ่งชำระ"
+                  paymentstatus:
+                    type: number
+                    description: "0 กำลังชำระ, 1 ชำระครบ, 2 ยกเลิกระหว่างชำระ, 3 ยกเลิก/คืนเงินแล้ว"
+                  paymentstatusname:
+                    type: string
+                    description: ชื่อสถานะ
+                  totalamount:
+                    type: number
+                    description: ยอดที่ต้องชำระ
+                  paidamount:
+                    type: number
+                    description: ยอดที่ชำระสำเร็จแล้ว
+                  remainingamount:
+                    type: number
+                    description: ยอดคงเหลือ
+                  paymenttype:
+                    type: number
+                    description: "5 = แบ่งชำระ (มีมากกว่า 1 ส่วน) หรือ 1-4"
+                  paymenttext:
+                    type: string
+                    description: "เช่น เงินสด 50 + PromptPay 50"
+                  receiptid:
+                    type: string
+                    description: ใบเสร็จที่ผูกกับการชำระ
+                  refundreason:
+                    type: string
+                    description: เหตุผลยกเลิก/คืนเงิน
+                  refund_at:
+                    type: number
+                    description: เวลาคืนเงิน (epoch วินาที)
+                  lines:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        lineno:
+                          type: number
+                          description: ลำดับ
+                        transactionid:
+                          type: string
+                          description: เลขธุรกรรม
+                        paymenttype:
+                          type: number
+                          description: "1-4"
+                        paymenttypename:
+                          type: string
+                          description: ชื่อช่องทาง
+                        amount:
+                          type: number
+                          description: ยอด
+                        cashreceived:
+                          type: number
+                          description: เงินที่รับ (เงินสด)
+                        cashchange:
+                          type: number
+                          description: เงินทอน (เงินสด)
+                        refno:
+                          type: string
+                          description: approval code จาก EDC
+                        linestatus:
+                          type: number
+                          description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                        linestatusname:
+                          type: string
+                          description: ชื่อสถานะ
+                        failreason:
+                          type: string
+                          description: เหตุผลที่ไม่สำเร็จ
+                        paid_at:
+                          type: number
+                          description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+                  message:
+                    type: string
+                    description: ข้อความ
+              example:
+                orderpaymentid: "3f1c2a9e-1111-4c1d-9a55-0d6c2b1e7a10"
+                ordernumber: RTP71895261106091501
+                issplit: true
+                paymentstatus: 0
+                paymentstatusname: กำลังชำระ
+                totalamount: 100
+                paidamount: 50
+                remainingamount: 50
+                paymenttype: 5
+                paymenttext: "เงินสด 50 + PromptPay 50"
+                receiptid: null
+                refundreason: null
+                refund_at: null
+                lines:
+                  - lineno: 1
+                    transactionid: RTP71895-261106091501-1
+                    paymenttype: 4
+                    paymenttypename: เงินสด
+                    amount: 50
+                    cashreceived: 60
+                    cashchange: 10
+                    refno: null
+                    linestatus: 1
+                    linestatusname: สำเร็จ
+                    failreason: null
+                    paid_at: 1793932501
+                  - lineno: 2
+                    transactionid: RTP71895-261106091501-2
+                    paymenttype: 2
+                    paymenttypename: PromptPay
+                    amount: 50
+                    cashreceived: 0
+                    cashchange: 0
+                    refno: null
+                    linestatus: 0
+                    linestatusname: รอชำระ
+                    failreason: null
+                    paid_at: null
+                message: Update split payment Success
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "401":
+          description: API key / token ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "404":
+          description: ไม่พบข้อมูล
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "409":
+          description: สถานะไม่ถูกต้อง หรือ transactionid ซ้ำ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+  /api/pos/paymentcancel:
+    put:
+      summary: ยกเลิกการชำระก่อนครบยอด
+      description: "paymentstatus -> 2 ; ส่วนที่รอชำระ -> ยกเลิก ; refundlines = ส่วนที่ชำระสำเร็จแล้ว ให้เครื่อง POS คืนเงิน / Void ที่ EDC แล้วแจ้งแต่ละส่วนด้วย /api/pos/paymentlineupdate (linestatus = 4) ; หลังยกเลิกเริ่มชำระใหม่ได้ด้วย /api/pos/paymentstart"
+      tags:
+        - Payment
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+                reason:
+                  type: string
+                  description: เหตุผล (ไม่บังคับ)
+              required:
+                - ordernumber
+            example:
+              ordernumber: RTP71895261106091501
+              reason: ลูกค้าเปลี่ยนใจ
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      orderpaymentid:
+                        type: string
+                        description: รหัสการชำระ
+                      ordernumber:
+                        type: string
+                        description: เลข Order
+                      issplit:
+                        type: boolean
+                        description: "true = แบ่งชำระ"
+                      paymentstatus:
+                        type: number
+                        description: "0 กำลังชำระ, 1 ชำระครบ, 2 ยกเลิกระหว่างชำระ, 3 ยกเลิก/คืนเงินแล้ว"
+                      paymentstatusname:
+                        type: string
+                        description: ชื่อสถานะ
+                      totalamount:
+                        type: number
+                        description: ยอดที่ต้องชำระ
+                      paidamount:
+                        type: number
+                        description: ยอดที่ชำระสำเร็จแล้ว
+                      remainingamount:
+                        type: number
+                        description: ยอดคงเหลือ
+                      paymenttype:
+                        type: number
+                        description: "5 = แบ่งชำระ (มีมากกว่า 1 ส่วน) หรือ 1-4"
+                      paymenttext:
+                        type: string
+                        description: "เช่น เงินสด 50 + PromptPay 50"
+                      receiptid:
+                        type: string
+                        description: ใบเสร็จที่ผูกกับการชำระ
+                      refundreason:
+                        type: string
+                        description: เหตุผลยกเลิก/คืนเงิน
+                      refund_at:
+                        type: number
+                        description: เวลาคืนเงิน (epoch วินาที)
+                      lines:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            lineno:
+                              type: number
+                              description: ลำดับ
+                            transactionid:
+                              type: string
+                              description: เลขธุรกรรม
+                            paymenttype:
+                              type: number
+                              description: "1-4"
+                            paymenttypename:
+                              type: string
+                              description: ชื่อช่องทาง
+                            amount:
+                              type: number
+                              description: ยอด
+                            cashreceived:
+                              type: number
+                              description: เงินที่รับ (เงินสด)
+                            cashchange:
+                              type: number
+                              description: เงินทอน (เงินสด)
+                            refno:
+                              type: string
+                              description: approval code จาก EDC
+                            linestatus:
+                              type: number
+                              description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                            linestatusname:
+                              type: string
+                              description: ชื่อสถานะ
+                            failreason:
+                              type: string
+                              description: เหตุผลที่ไม่สำเร็จ
+                            paid_at:
+                              type: number
+                              description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+                      message:
+                        type: string
+                        description: ข้อความ
+                  - type: object
+                    properties:
+                      refundlines:
+                        type: array
+                        description: ส่วนที่ต้องคืนเงิน
+                        items:
+                          type: object
+                          properties:
+                            lineno:
+                              type: number
+                              description: ลำดับ
+                            transactionid:
+                              type: string
+                              description: เลขธุรกรรม
+                            paymenttype:
+                              type: number
+                              description: "1-4"
+                            paymenttypename:
+                              type: string
+                              description: ชื่อช่องทาง
+                            amount:
+                              type: number
+                              description: ยอด
+                            cashreceived:
+                              type: number
+                              description: เงินที่รับ (เงินสด)
+                            cashchange:
+                              type: number
+                              description: เงินทอน (เงินสด)
+                            refno:
+                              type: string
+                              description: approval code จาก EDC
+                            linestatus:
+                              type: number
+                              description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                            linestatusname:
+                              type: string
+                              description: ชื่อสถานะ
+                            failreason:
+                              type: string
+                              description: เหตุผลที่ไม่สำเร็จ
+                            paid_at:
+                              type: number
+                              description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+              example:
+                orderpaymentid: "3f1c2a9e-1111-4c1d-9a55-0d6c2b1e7a10"
+                ordernumber: RTP71895261106091501
+                issplit: true
+                paymentstatus: 2
+                paymentstatusname: ยกเลิกระหว่างชำระ
+                totalamount: 100
+                paidamount: 50
+                remainingamount: 0
+                paymenttype: 5
+                paymenttext: "เงินสด 50 + PromptPay 50"
+                receiptid: null
+                refundreason: null
+                refund_at: null
+                lines:
+                  - lineno: 1
+                    transactionid: RTP71895-261106091501-1
+                    paymenttype: 4
+                    paymenttypename: เงินสด
+                    amount: 50
+                    cashreceived: 60
+                    cashchange: 10
+                    refno: null
+                    linestatus: 1
+                    linestatusname: สำเร็จ
+                    failreason: null
+                    paid_at: 1793932501
+                  - lineno: 2
+                    transactionid: RTP71895-261106091501-2
+                    paymenttype: 2
+                    paymenttypename: PromptPay
+                    amount: 50
+                    cashreceived: 0
+                    cashchange: 0
+                    refno: null
+                    linestatus: 0
+                    linestatusname: รอชำระ
+                    failreason: null
+                    paid_at: null
+                message: Cancel payment Success
+                refundlines:
+                  - lineno: 1
+                    transactionid: RTP71895-261106091501-1
+                    paymenttype: 4
+                    paymenttypename: เงินสด
+                    amount: 50
+                    cashreceived: 60
+                    cashchange: 10
+                    refno: null
+                    linestatus: 1
+                    linestatusname: สำเร็จ
+                    failreason: null
+                    paid_at: 1793932501
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "401":
+          description: API key / token ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "404":
+          description: ไม่พบข้อมูล
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "409":
+          description: สถานะไม่ถูกต้อง หรือ transactionid ซ้ำ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+  /api/pos/orderrefund:
+    put:
+      summary: ยกเลิก / คืนเงินทั้งใบ
+      description: "ใช้ได้ทั้งบิลช่องทางเดียวและบิลแบ่งชำระที่ชำระครบแล้ว ; paymentstatus -> 3 และทุกส่วนที่สำเร็จ -> 4 คืนเงินแล้ว ; บันทึกเหตุผล ผู้ทำรายการ (จาก token) ผู้อนุมัติ และเวลา ; ใบเสร็จยังเก็บไว้ รายงานจะไม่นับยอดและแสดงว่าคืนเงิน ; refundlines ใช้อ้างอิง transactionid ตอน Void ที่ EDC ; สถานะออเดอร์ยังเปลี่ยนด้วย /api/pos/orderupdatestatus ตามเดิม"
+      tags:
+        - Payment
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ordernumber:
+                  type: string
+                  description: เลข Order
+                reason:
+                  type: string
+                  description: เหตุผล
+                approveby:
+                  type: string
+                  description: ผู้อนุมัติ (ไม่บังคับ)
+              required:
+                - ordernumber
+                - reason
+            example:
+              ordernumber: RTP71895261106091501
+              reason: ลูกค้าขอยกเลิก
+              approveby: manager01
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - type: object
+                    properties:
+                      orderpaymentid:
+                        type: string
+                        description: รหัสการชำระ
+                      ordernumber:
+                        type: string
+                        description: เลข Order
+                      issplit:
+                        type: boolean
+                        description: "true = แบ่งชำระ"
+                      paymentstatus:
+                        type: number
+                        description: "0 กำลังชำระ, 1 ชำระครบ, 2 ยกเลิกระหว่างชำระ, 3 ยกเลิก/คืนเงินแล้ว"
+                      paymentstatusname:
+                        type: string
+                        description: ชื่อสถานะ
+                      totalamount:
+                        type: number
+                        description: ยอดที่ต้องชำระ
+                      paidamount:
+                        type: number
+                        description: ยอดที่ชำระสำเร็จแล้ว
+                      remainingamount:
+                        type: number
+                        description: ยอดคงเหลือ
+                      paymenttype:
+                        type: number
+                        description: "5 = แบ่งชำระ (มีมากกว่า 1 ส่วน) หรือ 1-4"
+                      paymenttext:
+                        type: string
+                        description: "เช่น เงินสด 50 + PromptPay 50"
+                      receiptid:
+                        type: string
+                        description: ใบเสร็จที่ผูกกับการชำระ
+                      refundreason:
+                        type: string
+                        description: เหตุผลยกเลิก/คืนเงิน
+                      refund_at:
+                        type: number
+                        description: เวลาคืนเงิน (epoch วินาที)
+                      lines:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            lineno:
+                              type: number
+                              description: ลำดับ
+                            transactionid:
+                              type: string
+                              description: เลขธุรกรรม
+                            paymenttype:
+                              type: number
+                              description: "1-4"
+                            paymenttypename:
+                              type: string
+                              description: ชื่อช่องทาง
+                            amount:
+                              type: number
+                              description: ยอด
+                            cashreceived:
+                              type: number
+                              description: เงินที่รับ (เงินสด)
+                            cashchange:
+                              type: number
+                              description: เงินทอน (เงินสด)
+                            refno:
+                              type: string
+                              description: approval code จาก EDC
+                            linestatus:
+                              type: number
+                              description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                            linestatusname:
+                              type: string
+                              description: ชื่อสถานะ
+                            failreason:
+                              type: string
+                              description: เหตุผลที่ไม่สำเร็จ
+                            paid_at:
+                              type: number
+                              description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+                      message:
+                        type: string
+                        description: ข้อความ
+                  - type: object
+                    properties:
+                      refundlines:
+                        type: array
+                        description: ส่วนที่คืนเงิน
+                        items:
+                          type: object
+                          properties:
+                            lineno:
+                              type: number
+                              description: ลำดับ
+                            transactionid:
+                              type: string
+                              description: เลขธุรกรรม
+                            paymenttype:
+                              type: number
+                              description: "1-4"
+                            paymenttypename:
+                              type: string
+                              description: ชื่อช่องทาง
+                            amount:
+                              type: number
+                              description: ยอด
+                            cashreceived:
+                              type: number
+                              description: เงินที่รับ (เงินสด)
+                            cashchange:
+                              type: number
+                              description: เงินทอน (เงินสด)
+                            refno:
+                              type: string
+                              description: approval code จาก EDC
+                            linestatus:
+                              type: number
+                              description: "0 รอชำระ, 1 สำเร็จ, 2 ไม่สำเร็จ, 3 ยกเลิก, 4 คืนเงินแล้ว"
+                            linestatusname:
+                              type: string
+                              description: ชื่อสถานะ
+                            failreason:
+                              type: string
+                              description: เหตุผลที่ไม่สำเร็จ
+                            paid_at:
+                              type: number
+                              description: เวลาที่ชำระสำเร็จ (epoch วินาที)
+                      duplicate:
+                        type: boolean
+                        description: "true = คืนเงินไปแล้ว"
+              example:
+                orderpaymentid: "3f1c2a9e-1111-4c1d-9a55-0d6c2b1e7a10"
+                ordernumber: RTP71895261106091501
+                issplit: true
+                paymentstatus: 3
+                paymentstatusname: คืนเงินแล้ว
+                totalamount: 100
+                paidamount: 100
+                remainingamount: 0
+                paymenttype: 5
+                paymenttext: "เงินสด 50 + PromptPay 50"
+                receiptid: null
+                refundreason: ลูกค้าขอยกเลิก
+                refund_at: 1793936101
+                lines:
+                  - lineno: 1
+                    transactionid: RTP71895-261106091501-1
+                    paymenttype: 4
+                    paymenttypename: เงินสด
+                    amount: 50
+                    cashreceived: 60
+                    cashchange: 10
+                    refno: null
+                    linestatus: 1
+                    linestatusname: สำเร็จ
+                    failreason: null
+                    paid_at: 1793932501
+                  - lineno: 2
+                    transactionid: RTP71895-261106091501-2
+                    paymenttype: 2
+                    paymenttypename: PromptPay
+                    amount: 50
+                    cashreceived: 0
+                    cashchange: 0
+                    refno: null
+                    linestatus: 0
+                    linestatusname: รอชำระ
+                    failreason: null
+                    paid_at: null
+                message: Refund order Success
+        "400":
+          description: ข้อมูลไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "401":
+          description: API key / token ไม่ถูกต้อง
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "404":
+          description: ไม่พบข้อมูล
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
+        "409":
+          description: สถานะไม่ถูกต้อง หรือ transactionid ซ้ำ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: ข้อความ
   /api/pos/availableslot:
     post:
       summary: Available slot
@@ -4918,6 +6312,7 @@ paths:
       summary: รายงานการสั่งซื้อ
       description: |
         shopid: รหัสร้าน หรือค่าพิเศษ (เฉพาะ Admin, ไม่ใช่ Admin -> 403)
+        แบ่งชำระ - paymenttype เป็นข้อความ เช่น เงินสด 50 + PromptPay 50 (ช่องทางเดียวยังเป็น 1-4) ; เพิ่ม issplit, paymentstatus, paymentstatusname, isrefunded, refundreason, refund_at, payments ; แสดงบิลที่คืนเงินแล้วด้วย
         - all = ทุกร้าน
         - online = ออเดอร์จาก /api/pos/orderinsert
         ร้านปกติ: ออเดอร์ของร้าน (Offline ที่มีใบเสร็จ + Online ใน orderinfo ordertype = 0)
@@ -5096,7 +6491,7 @@ paths:
         - name: period
           in: query
           required: false
-          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today)"
+          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today) ; รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ไม่นับบิลที่ยกเลิกหรือคืนเงิน"
           schema:
             type: string
           example: today
@@ -5163,7 +6558,7 @@ paths:
         - name: period
           in: query
           required: false
-          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today)"
+          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today) ; รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ไม่นับบิลที่ยกเลิกหรือคืนเงิน"
           schema:
             type: string
           example: today
@@ -5230,7 +6625,7 @@ paths:
         - name: period
           in: query
           required: false
-          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today)"
+          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today) ; รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ไม่นับบิลที่ยกเลิกหรือคืนเงิน"
           schema:
             type: string
           example: today
@@ -5297,7 +6692,7 @@ paths:
         - name: period
           in: query
           required: false
-          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today)"
+          description: "ช่วงเวลา: today | thisweek | thismonth | thisyear | bydate (ค่าเริ่มต้น today) ; รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ไม่นับบิลที่ยกเลิกหรือคืนเงิน"
           schema:
             type: string
           example: today
@@ -5489,7 +6884,7 @@ paths:
   /api/backoffice/receiptorder:
     post:
       summary: ใบเสร็จของออเดอร์ (ใช้สร้าง PDF)
-      description: ออเดอร์ Online ไม่มี receiptinfo -> สร้างจาก orderinfo (receiptnumber = '-')
+      description: "ออเดอร์ Online ไม่มี receiptinfo -> สร้างจาก orderinfo (receiptnumber = '-') ; เพิ่ม payments (ช่องทาง ยอด เงินรับ เงินทอน transactionid refno), issplit, isrefunded, refundreason, refund_at"
       tags:
         - Backoffice - Report
       security:

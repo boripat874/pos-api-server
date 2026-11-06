@@ -9,6 +9,7 @@ const path = require("path");
 
 const {checkAuthorizetion} = require("../../modules/fun");
 const {convertTotimestamp} = require("../../modules/convertTotimestamp");
+const SP = require("../../modules/splitPayment"); // แบ่งชำระ / คืนเงิน
 
 const jwt = require("jsonwebtoken"); // ใช้สําหรับสร้างและตรวจสอบ JWT
 
@@ -109,7 +110,8 @@ function offlineWithReceipt(qb) {
         .whereNotNull("receiptinfo.paymentType")
         .whereNot("receiptinfo.paymentType", 0);
     })
-    .modify(notCancelled);
+    .modify(notCancelled)
+    .modify(SP.notRefunded); // ไม่นับบิลที่คืนเงินแล้ว
 }
 
 // ข้อมูลไฟสถานะสำหรับหน้าเว็บ
@@ -201,12 +203,15 @@ exports.dashboardDataList = async (req, res) => {
                     .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
                   })
         
-        const query_total_creditcard = await db("orderinfo")
-            .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-            .sum("orderinfo.orderpricenet as total_creditcard")
-            .where({
-                "orderinfo.shopid":shopid,
-                "receiptinfo.paymentType": 1
+        // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+        const query_total_creditcard = await SP.sumByPaymentTypeQuery(1, "total_creditcard")
+            .where("orderinfo.shopid", shopid)
+            .andWhere("orderinfo.status", true)
+            .andWhere("orderinfo.orderispay", ">", 0)
+            .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+            .andWhere(function () {
+                this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+                .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
             .andWhere("orderinfo.status", true)
             .andWhere("orderinfo.orderispay", ">", 0)
@@ -216,12 +221,15 @@ exports.dashboardDataList = async (req, res) => {
                 .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
 
-        const query_total_promptpay = await db("orderinfo")
-            .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-            .sum("orderinfo.orderpricenet as total_promptpay")
-            .where({
-                "orderinfo.shopid":shopid,
-                "receiptinfo.paymentType": 2
+        // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+        const query_total_promptpay = await SP.sumByPaymentTypeQuery(2, "total_promptpay")
+            .where("orderinfo.shopid", shopid)
+            .andWhere("orderinfo.status", true)
+            .andWhere("orderinfo.orderispay", ">", 0)
+            .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+            .andWhere(function () {
+                this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+                .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
             .andWhere("orderinfo.status", true)
             .andWhere("orderinfo.orderispay", ">", 0)
@@ -231,12 +239,15 @@ exports.dashboardDataList = async (req, res) => {
                 .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
 
-        const query_total_ewallet = await db("orderinfo")
-            .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-            .sum("orderinfo.orderpricenet as total_ewallet")
-            .where({
-                "orderinfo.shopid":shopid,
-                "receiptinfo.paymentType": 3
+        // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+        const query_total_ewallet = await SP.sumByPaymentTypeQuery(3, "total_ewallet")
+            .where("orderinfo.shopid", shopid)
+            .andWhere("orderinfo.status", true)
+            .andWhere("orderinfo.orderispay", ">", 0)
+            .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+            .andWhere(function () {
+                this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+                .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
             .andWhere("orderinfo.status", true)
             .andWhere("orderinfo.orderispay", ">", 0)
@@ -246,12 +257,15 @@ exports.dashboardDataList = async (req, res) => {
                 .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
 
-        const query_total_cash = await db("orderinfo")
-            .join("receiptinfo", "orderinfo.ordernumber", "receiptinfo.ordernumber")
-            .sum("orderinfo.orderpricenet as total_cash")
-            .where({
-                "orderinfo.shopid":shopid,
-                "receiptinfo.paymentType": 4
+        // รวมยอดของส่วนที่ชำระสำเร็จตามช่องทาง (รองรับแบ่งชำระ) ; ไม่นับบิลที่ยกเลิก / คืนเงิน
+        const query_total_cash = await SP.sumByPaymentTypeQuery(4, "total_cash")
+            .where("orderinfo.shopid", shopid)
+            .andWhere("orderinfo.status", true)
+            .andWhere("orderinfo.orderispay", ">", 0)
+            .modify(notCancelled) // ไม่นับออเดอร์ที่ยกเลิก
+            .andWhere(function () {
+                this.where("orderinfo.ordertimestamp", ">=", timestamp.startTimestamp)
+                .andWhere("orderinfo.ordertimestamp", "<", timestamp.endTimestamp);
             })
             .andWhere("orderinfo.status", true)
             .andWhere("orderinfo.orderispay", ">", 0)

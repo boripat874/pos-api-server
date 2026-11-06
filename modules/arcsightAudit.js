@@ -38,6 +38,12 @@ const EVENTS = {
   "DELETE /api/pos/notificationdelete/:id": [2050, "POS notification delete"],
   "POST /api/pos/promotionslist": [2060, "POS promotion list"],
   "POST /api/pos/orderinsert": [2027, "POS online order insert"],
+  "POST /api/pos/paymentstart": [2034, "POS split payment start"],
+  "POST /api/pos/paymentstatus": [2035, "POS payment status"],
+  "PUT /api/pos/paymentlineupdate": [2036, "POS payment line update"],
+  "PUT /api/pos/paymentsplitupdate": [2037, "POS split payment update"],
+  "PUT /api/pos/paymentcancel": [2038, "POS payment cancel"],
+  "PUT /api/pos/orderrefund": [2039, "POS order refund"],
 
   // ---------------- Backoffice ----------------
   "POST /api/backoffice/signin": [3001, "Backoffice sign in"],
@@ -214,6 +220,8 @@ function arcsightAudit(req, res, next) {
         }
       }
       if (req.params && req.params.id) payload.externalId = req.params.id;
+      // แบ่งชำระ / ใบเสร็จ : เลขธุรกรรม
+      if (!payload.externalId && body.transactionid) payload.externalId = String(body.transactionid).slice(0, 100);
 
       sendlogArcSight(ok ? eventName : `${eventName} failed`, eventId, severityOf(status), payload);
     } catch (e) {

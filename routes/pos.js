@@ -13,6 +13,7 @@ const order = require("../controllers/pos/order")
 const shopinfo = require("../controllers/pos/shop")
 const terminal = require("../controllers/pos/terminal")
 const { orderinsert } = require("../controllers/onlineOrder")
+const payment = require("../controllers/pos/payment") // แบ่งชำระ
 
 // login
 router.get("/pos/checklogin",login.checklogin);
@@ -56,6 +57,14 @@ router.put("/pos/walletupdate",order.walletupdate);
 router.post("/pos/receiptlist",order.receiptlist);
 router.post("/pos/receiptcreate",order.receiptcreate);
 router.post("/pos/receiptdelete", order.receiptdelete);
+
+// Payment (แบ่งชำระ / คืนเงิน)
+router.post("/pos/paymentstart", payment.paymentstart);
+router.post("/pos/paymentstatus", payment.paymentstatus);
+router.put("/pos/paymentlineupdate", payment.paymentlineupdate);
+router.put("/pos/paymentsplitupdate", payment.paymentsplitupdate);
+router.put("/pos/paymentcancel", payment.paymentcancel);
+router.put("/pos/orderrefund", payment.orderrefund);
 
 
 // Available slot
