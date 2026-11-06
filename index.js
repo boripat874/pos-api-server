@@ -14,8 +14,12 @@ const {createReceipt,uploadReceipt,retryPendingReceipt,receiptSyncStatus} = requ
 const {setshoplot} = require("./setshopslot");
 const cron = require("node-cron");
 const { arcsightAudit } = require("./modules/arcsightAudit");
+const { requestLogger, startSystemLog } = require("./modules/systemLog"); // syslog ของระบบ (ไฟล์รายวัน เก็บ 7 วัน)
 
 require("dotenv").config();
+
+// syslog ของระบบ: เก็บ error / warning + ลบไฟล์ log เกิน 7 วัน (ทุกวัน 00:15)
+startSystemLog(cron);
 
 // const swaggerJsdoc = require("swagger-jsdoc");
 
@@ -35,6 +39,9 @@ const corsOptions = {
     credentials: true,
 };
 // 58.136.159.58
+
+// syslog ของระบบ: เก็บทุก request (method, path, status, เวลาตอบ, IP, ผู้ใช้) ; วางก่อน body parser เพื่อเก็บ request ที่ JSON ผิดด้วย
+app.use(requestLogger);
 
 app.use(cors(corsOptions));
 

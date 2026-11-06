@@ -5,6 +5,8 @@ module.exports = {
     instances: "max",
     autorestart: true,
     watch: true,
+    // ไม่ restart เมื่อไฟล์ log / ไฟล์อัปโหลดเปลี่ยน (syslog ของระบบเขียนลง logs/ ตลอดเวลา)
+    ignore_watch: ["node_modules", "logs", "uploads", "fileuploads", "datacsv"],
     env: {
       NameDatabase: "pg",
       Host: "10.10.17.2",
