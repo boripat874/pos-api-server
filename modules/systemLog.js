@@ -1,5 +1,5 @@
 // =====================================================================
-// Syslog ของระบบ (เก็บบน POS Server) : POS_Server 1.0.10
+// Syslog ของระบบ (เก็บบน POS Server) : POS_Server 1.0.10 (Log Monitor 1.0.11)
 //   - เก็บทุก request (method, path, status, เวลาตอบ, IP, ผู้ใช้) และ error / warning ของ server
 //   - เขียนเป็นไฟล์รายวัน  <SYSTEM_LOG_DIR>/system-YYYY-MM-DD.log  (1 บรรทัด = 1 รายการ, รูปแบบ syslog + JSON)
 //   - ลบไฟล์ที่เก็บเกิน SYSTEM_LOG_RETENTION_DAYS วัน (ค่าเริ่มต้น 7) ทุกวัน 00:15 และตอนเปิด server
@@ -116,8 +116,13 @@ function safeUrl(req) {
   return `${url.slice(0, i)}?${qs}`;
 }
 
+// ไม่บันทึกการดึง log ของหน้า Log Monitor เอง (อัปเดตทุก 10 วินาที จะทำให้ log รก)
+const SKIP_PATHS = ["/logmonitor/api/logs"];
+
 function requestLogger(req, res, next) {
   if (!ENABLED) return next();
+  const p = String(req.originalUrl || req.url || "").split("?")[0];
+  if (SKIP_PATHS.includes(p)) return next();
   const start = process.hrtime.bigint();
   let done = false;
   const finish = (aborted) => {

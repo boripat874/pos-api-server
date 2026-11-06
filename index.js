@@ -71,6 +71,9 @@ app.use(
 );
 app.use("/uploads", express.static("uploads"));
 
+// Log Monitor : หน้าดู syslog ของระบบ (เฉพาะผู้ดูแล : LOGVIEW_USER / LOGVIEW_PASSWORD ใน .env)
+app.use("/logmonitor", require("./routes/logmonitor"));
+
 (async () => {
   await setshoplot(); // if setshoplot returns a promise
 

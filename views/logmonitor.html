@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>POS Log Monitor</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1d2330; --muted: #6b7385; --line: #e3e6ec;
+    --accent: #1f6feb; --info: #2e7d4f; --info-bg: #e5f4ea; --warn: #9a6200; --warn-bg: #fff3d6;
+    --err: #c62828; --err-bg: #fde7e7; --row-hover: #f0f4ff; --code: #f3f4f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1a1e26; --text: #e6e9ef; --muted: #8d95a7; --line: #2a303b;
+      --accent: #5b9dff; --info: #6fd39a; --info-bg: #17301f; --warn: #f2c14e; --warn-bg: #352a10;
+      --err: #ff7b7b; --err-bg: #3a1717; --row-hover: #222938; --code: #11141a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  header .meta { color: var(--muted); font-size: 12px; }
+  main { padding: 16px 20px 40px; max-width: 1500px; margin: 0 auto; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 12px; align-items: end; }
+  .filters > div { min-width: 0; }
+  .filters .wide { grid-column: span 2; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  input, select, button { font: inherit; color: inherit; }
+  input, select { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button { padding: 7px 14px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .6; cursor: default; }
+  .quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .quick button { padding: 4px 10px; font-size: 12px; }
+  .quick .sep { flex: 1; }
+  .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .switch input { width: auto; }
+  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 10px; align-items: center; color: var(--muted); font-size: 13px; }
+  .chip { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .INFO { color: var(--info); background: var(--info-bg); }
+  .WARN { color: var(--warn); background: var(--warn-bg); }
+  .ERROR { color: var(--err); background: var(--err-bg); }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--panel); }
+  tbody tr.row { cursor: pointer; }
+  tbody tr.row:hover { background: var(--row-hover); }
+  td.msg { white-space: normal; word-break: break-word; min-width: 280px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  .st2 { color: var(--info); } .st4 { color: var(--warn); } .st5 { color: var(--err); font-weight: 600; }
+  tr.detail td { background: var(--code); white-space: pre-wrap; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+  .error { color: var(--err); margin-top: 10px; }
+  mark { background: #ffe58a; color: #1d2330; border-radius: 2px; padding: 0 1px; }
+  /* login */
+  .login { max-width: 360px; margin: 12vh auto 0; }
+  .login h2 { margin: 0 0 4px; font-size: 18px; }
+  .login p { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+  .login .field { margin-bottom: 12px; }
+  .login button { width: 100%; margin-top: 6px; }
+  .hidden { display: none !important; }
+  @media (max-width: 640px) {
+    main { padding: 12px; } header { padding: 10px 12px; }
+    .filters { grid-template-columns: 1fr; }
+    .filters .wide { grid-column: auto; }
+  }
+</style>
+</head>
+<body>
+
+<section id="loginView" class="login panel">
+  <h2>POS Log Monitor</h2>
+  <p>สำหรับผู้ดูแลระบบเท่านั้น</p>
+  <form id="loginForm" autocomplete="off">
+    <div class="field"><label for="u">ชื่อผู้ใช้</label><input id="u" name="username" required autocomplete="username"></div>
+    <div class="field"><label for="p">รหัสผ่าน</label><input id="p" name="password" type="password" required autocomplete="current-password"></div>
+    <button class="primary" type="submit" id="loginBtn">เข้าสู่ระบบ</button>
+    <div class="error" id="loginErr"></div>
+  </form>
+</section>
+
+<div id="appView" class="hidden">
+  <header>
+    <div>
+      <h1>POS Log Monitor</h1>
+      <div class="meta" id="meta">syslog ของระบบ</div>
+    </div>
+    <button id="logoutBtn" type="button">ออกจากระบบ</button>
+  </header>
+  <main>
+    <form class="panel" id="filterForm">
+      <div class="filters">
+        <div><label for="from">ตั้งแต่</label><input id="from" type="datetime-local"></div>
+        <div><label for="to">ถึง</label><input id="to" type="datetime-local"></div>
+        <div class="wide"><label for="q">ค้นหา (ชื่อผู้ใช้ / ข้อความ / path / IP / เลขออเดอร์)</label><input id="q" type="search" placeholder="เช่น ordercreate, ERROR, 10.10.46.2, สมชาย"></div>
+        <div><label for="level">ระดับ</label>
+          <select id="level"><option value="">ทั้งหมด</option><option value="ERROR">ERROR</option><option value="WARN">WARN</option><option value="WARN,ERROR">WARN + ERROR</option><option value="INFO">INFO</option></select></div>
+        <div><label for="type">ประเภท</label>
+          <select id="type"><option value="">ทั้งหมด</option><option value="request">request</option><option value="error">error</option><option value="warn">warn</option><option value="uncaughtException">uncaughtException</option><option value="unhandledRejection">unhandledRejection</option><option value="logmonitor">logmonitor</option><option value="start">start</option><option value="cleanup">cleanup</option></select></div>
+        <div><label for="limit">จำนวนสูงสุด</label>
+          <select id="limit"><option>200</option><option selected>500</option><option>1000</option><option>2000</option></select></div>
+        <div><button class="primary" type="submit" id="searchBtn" style="width:100%">ค้นหา</button></div>
+      </div>
+      <div class="quick">
+        <span class="switch">ช่วงเวลา:</span>
+        <button type="button" data-min="15">15 นาที</button>
+        <button type="button" data-min="60">1 ชั่วโมง</button>
+        <button type="button" data-min="360">6 ชั่วโมง</button>
+        <button type="button" data-min="1440">24 ชั่วโมง</button>
+        <button type="button" data-min="10080">7 วัน</button>
+        <span class="sep"></span>
+        <label class="switch"><input type="checkbox" id="auto"> อัปเดตอัตโนมัติทุก 10 วินาที (ช่วงเวลาล่าสุด)</label>
+      </div>
+    </form>
+
+    <div class="summary" id="summary"></div>
+    <div class="error" id="err"></div>
+
+    <div class="panel tablewrap">
+      <table>
+        <thead><tr><th>เวลา</th><th>ระดับ</th><th>Method</th><th>Path / ข้อความ</th><th>Status</th><th class="num">ms</th><th>IP</th><th>ผู้ใช้</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="8" class="empty">กด "ค้นหา" เพื่อแสดง log</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var API = location.pathname.replace(/\/+$/, "") + "/api";
+  var KEY = "pos_logmonitor_token";
+  var $ = function (id) { return document.getElementById(id); };
+  var token = null, lastMin = 60, timer = null, busy = false;
+
+  try { token = sessionStorage.getItem(KEY); } catch (e) {}
+
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function toLocalInput(d) {
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+  function setRange(min) {
+    lastMin = min;
+    var now = new Date();
+    $("to").value = toLocalInput(now);
+    $("from").value = toLocalInput(new Date(now.getTime() - min * 60000));
+  }
+  function show(logged) {
+    $("loginView").classList.toggle("hidden", logged);
+    $("appView").classList.toggle("hidden", !logged);
+  }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  // ไฮไลต์คำค้น (สร้าง DOM เอง ไม่ใช้ innerHTML)
+  function highlight(parent, text, q) {
+    text = String(text);
+    if (!q) { parent.textContent = text; return; }
+    var lower = text.toLowerCase(), i = 0, j;
+    while ((j = lower.indexOf(q, i)) >= 0) {
+      if (j > i) parent.appendChild(document.createTextNode(text.slice(i, j)));
+      parent.appendChild(el("mark", null, text.slice(j, j + q.length)));
+      i = j + q.length;
+    }
+    if (i < text.length) parent.appendChild(document.createTextNode(text.slice(i)));
+  }
+
+  function logout() {
+    token = null;
+    try { sessionStorage.removeItem(KEY); } catch (e) {}
+    stopAuto();
+    show(false);
+  }
+
+  $("loginForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginErr").textContent = "";
+    $("loginBtn").disabled = true;
+    fetch(API + "/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: $("u").value, password: $("p").value })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (!x.ok) throw new Error(x.j.message || "เข้าสู่ระบบไม่สำเร็จ");
+        token = x.j.token;
+        try { sessionStorage.setItem(KEY, token); } catch (e) {}
+        $("p").value = "";
+        show(true);
+        setRange(60);
+        load();
+      })
+      .catch(function (e) { $("loginErr").textContent = e.message; })
+      .then(function () { $("loginBtn").disabled = false; });
+  });
+  $("logoutBtn").addEventListener("click", logout);
+
+  function render(data, q) {
+    var tb = $("rows");
+    tb.textContent = "";
+    var s = $("summary");
+    s.textContent = "";
+    s.appendChild(el("span", null, "พบ " + data.total.toLocaleString() + " รายการ" + (data.truncated ? " (แสดงล่าสุด " + data.returned.toLocaleString() + ")" : "")));
+    ["ERROR", "WARN", "INFO"].forEach(function (l) { s.appendChild(el("span", "chip " + l, l + " " + (data.counts[l] || 0).toLocaleString())); });
+    s.appendChild(el("span", null, "· อัปเดต " + fmtTime(new Date().toISOString())));
+
+    if (!data.entries.length) {
+      var tr0 = el("tr"); var td0 = el("td", "empty", "ไม่พบ log ในช่วงเวลานี้"); td0.colSpan = 8; tr0.appendChild(td0); tb.appendChild(tr0);
+      return;
+    }
+    var frag = document.createDocumentFragment();
+    data.entries.forEach(function (e) {
+      var d = e.data || {};
+      var tr = el("tr", "row");
+      tr.appendChild(el("td", "mono", fmtTime(e.time)));
+      var tdl = el("td"); tdl.appendChild(el("span", "chip " + e.level, e.level)); tr.appendChild(tdl);
+      tr.appendChild(el("td", "mono", d.method || ""));
+      var msg = el("td", "msg mono");
+      var text = d.type === "request" ? (d.url || "") : (d.msg || d.type || "");
+      if (d.type !== "request" && d.type) text = "[" + d.type + "] " + text;
+      if (text.length > 400) text = text.slice(0, 400) + " …";
+      highlight(msg, text, q);
+      tr.appendChild(msg);
+      var st = d.status ? String(d.status) : "";
+      tr.appendChild(el("td", "mono " + (st ? "st" + st.charAt(0) : ""), st));
+      tr.appendChild(el("td", "num mono", d.ms !== undefined ? String(d.ms) : ""));
+      tr.appendChild(el("td", "mono", d.ip || ""));
+      var who = e.username ? e.username + (d.uinfoid ? " (" + d.uinfoid + ")" : "") : (d.uinfoid || d.username || "");
+      var tdu = el("td"); highlight(tdu, who, q); tr.appendChild(tdu);
+      tr.addEventListener("click", function () {
+        var nx = tr.nextSibling;
+        if (nx && nx.classList && nx.classList.contains("detail")) { nx.remove(); return; }
+        var dt = el("tr", "detail");
+        var td = el("td", "mono", JSON.stringify({ time: e.time, level: e.level, host: e.host, pid: e.pid, username: e.username, data: d }, null, 2));
+        td.colSpan = 8;
+        dt.appendChild(td);
+        tr.parentNode.insertBefore(dt, tr.nextSibling);
+      });
+      frag.appendChild(tr);
+    });
+    tb.appendChild(frag);
+  }
+
+  function load(isAuto) {
+    if (busy) return;
+    if (isAuto) setRange(lastMin);
+    var from = new Date($("from").value), to = new Date(new Date($("to").value).getTime() + 59999); // ถึงสิ้นนาที
+    if (isNaN(from) || isNaN(to)) { $("err").textContent = "กรุณาระบุช่วงเวลา"; return; }
+    var q = $("q").value.trim();
+    var params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString(), limit: $("limit").value });
+    if (q) params.set("q", q);
+    if ($("level").value) params.set("level", $("level").value);
+    if ($("type").value) params.set("type", $("type").value);
+    busy = true;
+    $("searchBtn").disabled = true;
+    $("err").textContent = "";
+    fetch(API + "/logs?" + params.toString(), { headers: { Authorization: "Bearer " + token } })
+      .then(function (r) {
+        if (r.status === 401) { logout(); throw new Error("หมดเวลาเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่"); }
+        return r.json().then(function (j) { if (!r.ok) throw new Error(j.message || "โหลดไม่สำเร็จ"); return j; });
+      })
+      .then(function (j) {
+        $("meta").textContent = "syslog ของระบบ · เก็บย้อนหลัง " + j.retention_days + " วัน";
+        render(j, q.toLowerCase());
+      })
+      .catch(function (e) { $("err").textContent = e.message; $("loginErr").textContent = e.message; })
+      .then(function () { busy = false; $("searchBtn").disabled = false; });
+  }
+
+  function stopAuto() { if (timer) { clearInterval(timer); timer = null; } $("auto").checked = false; }
+  $("auto").addEventListener("change", function () {
+    if (this.checked) { load(true); timer = setInterval(function () { load(true); }, 10000); }
+    else stopAuto();
+  });
+  $("filterForm").addEventListener("submit", function (ev) { ev.preventDefault(); load(false); });
+  Array.prototype.forEach.call(document.querySelectorAll(".quick button[data-min]"), function (b) {
+    b.addEventListener("click", function () { setRange(Number(b.getAttribute("data-min"))); load(false); });
+  });
+  ["from", "to"].forEach(function (id) { $(id).addEventListener("change", function () { if ($("auto").checked) stopAuto(); }); });
+
+  if (token) { show(true); setRange(60); load(false); } else { show(false); }
+})();
+</script>
+</body>
+</html>
