@@ -1076,8 +1076,8 @@ exports.ordercreate = (req, res) => {
     
           await trx("orderdetail").insert(orderdetail_data);
 
-          // ตัดสต็อกสินค้า (productremain ติดลบได้)
-          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.CREATE, source: "ZOOAPP" });
+          // ตัดสต็อกสินค้า (productremain ติดลบได้) ; ร้านของฝากแยก stock ZooApp -> ไม่ตัด
+          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.CREATE, source: "ZOOAPP", ordertype: 0 });
         });
   
         resolve({

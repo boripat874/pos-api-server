@@ -991,7 +991,7 @@ paths:
   /api/ordercreate:
     post:
       summary: Order create
-      description: "Create a new order. ; ตัดสต็อก - ลด productremain ตาม qty ของสินค้าทุกรายการ (ติดลบได้) ; สินค้าที่ไม่พบในร้าน -> 402 Product not found"
+      description: "Create a new order. ; ตัดสต็อก - ลด productremain ตาม qty ของสินค้าทุกรายการ (ติดลบได้) ; สินค้าที่ไม่พบในร้าน -> 402 Product not found ; ร้านของฝาก (shoptype SOUVENIRS) แยก stock กับ POS จึงไม่ตัด / คืน"
       tags:
         - Order
       security:

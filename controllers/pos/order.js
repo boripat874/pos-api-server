@@ -465,7 +465,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           await trx("orderdetail").insert(orderdetail_data);
 
           // ตัดสต็อกสินค้า (productremain ติดลบได้)
-          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.CREATE, source: "POS" });
+          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.CREATE, source: "POS", ordertype: 1 });
         });
   
         resolve({
@@ -1185,7 +1185,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
         if (PS.isCancelledStatus(orderstatus)) {
           await PS.restoreOrderStock(trx, { ordernumber, shopid, movementtype: PS.MOVE.CANCEL, source: "POS" });
         } else {
-          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.UPDATE, source: "POS" });
+          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.UPDATE, source: "POS", ordertype });
         }
         });
 

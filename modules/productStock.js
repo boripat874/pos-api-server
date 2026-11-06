@@ -5,12 +5,25 @@
 //   - ยกเลิก (3,4,8,9) / คืนเงิน / ลบออเดอร์ -> บวกคืนเท่าที่ตัดไป
 //   ทุกการเปลี่ยนแปลงบันทึกในตาราง productstockmovement (ใช้ตรวจสอบ และกันการคืนซ้ำ)
 //   ออเดอร์ Online จากระบบภายนอก (/api/pos/orderinsert) ไม่ตัดสต็อก (แยก stock กัน)
+//   ออเดอร์ ZooApp (ordertype 0) ของร้านของฝาก (shoptype = SOUVENIRS) ไม่ตัดสต็อก POS (แยก stock)
+//   ร้านอาหารตัด / คืนตามปกติ
 // =====================================================================
 const { db } = require("../db/postgresql");
 const { uuid } = require("uuidv4");
 
 const CANCELLED_ORDERSTATUS = [3, 4, 8, 9];
 const isCancelledStatus = (s) => s !== null && s !== undefined && CANCELLED_ORDERSTATUS.includes(Number(s));
+
+const ORDERTYPE_ZOOAPP = 0;            // orderinfo.ordertype : 0 = Online (ZooApp), 1 = POS
+const SHOPTYPE_SEPARATE_STOCK = ["SOUVENIRS"]; // ร้านที่ ZooApp แยก stock กับ POS
+
+// ออเดอร์นี้ต้องตัดสต็อก POS หรือไม่
+async function isStockTracked(trx, { shopid, ordertype }) {
+  if (ordertype === undefined || ordertype === null || Number(ordertype) !== ORDERTYPE_ZOOAPP) return true;
+  const shop = await trx("shopinfo").select("shoptype").where({ shopid }).first();
+  const type = String((shop && shop.shoptype) || "").trim().toUpperCase();
+  return !SHOPTYPE_SEPARATE_STOCK.includes(type);
+}
 
 const MOVE = {
   CREATE: "ORDER_CREATE",
@@ -62,7 +75,10 @@ async function deductedByProduct(trx, ordernumber) {
 
 // ปรับสต็อกของออเดอร์ให้ "ตัดอยู่" เท่ากับ items (items ว่าง = คืนทั้งหมด)
 //   คืนค่า [{ productid, change, productremain }]
-async function syncOrderStock(trx, { ordernumber, shopid, items, movementtype, source }) {
+//   ordertype = 0 (ZooApp) ของร้านของฝาก -> ไม่ตัด (การคืนอิงจากที่ตัดไว้จริง จึงคืนเป็น 0 เอง)
+async function syncOrderStock(trx, { ordernumber, shopid, items, movementtype, source, ordertype }) {
+  if ((items || []).length && !(await isStockTracked(trx, { shopid, ordertype }))) return [];
+
   // ล็อกต่อออเดอร์ กันตัด/คืนซ้ำเมื่อมีคำขอพร้อมกัน (ปลดเมื่อจบ transaction)
   await trx.raw("SELECT pg_advisory_xact_lock(hashtext(?))", [String(ordernumber)]);
   const target = sumByProduct(items);
@@ -106,6 +122,9 @@ function restoreOrderStock(trx, { ordernumber, shopid, movementtype, source }) {
 
 module.exports = {
   CANCELLED_ORDERSTATUS,
+  ORDERTYPE_ZOOAPP,
+  SHOPTYPE_SEPARATE_STOCK,
+  isStockTracked,
   isCancelledStatus,
   MOVE,
   assertProductsExist,
