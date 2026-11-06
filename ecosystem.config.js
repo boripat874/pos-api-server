@@ -14,9 +14,6 @@ module.exports = {
       Password: "zoo@pos2026_pgsql",
       Database: "pos",
       Port: 80,
-      SYSTEM_LOG_ENABLED: true,
-      SYSTEM_LOG_DIR: "./logs",
-      SYSTEM_LOG_RETENTION_DAYS: 7
     },
     
   }],
