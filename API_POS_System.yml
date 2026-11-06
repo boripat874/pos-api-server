@@ -5,7 +5,7 @@ info:
     API for POS System (เครื่อง POS) และ Backoffice
     - /api/pos/* : เครื่อง POS
     - /api/backoffice/* : เว็บ Backoffice (อยู่ท้ายเอกสาร)
-  version: 1.0.8
+  version: 1.0.9
 servers:
   - url: "http://10.10.46.2:80"
     description: Development Server
@@ -748,7 +748,7 @@ paths:
   /api/pos/ordercreate:
     post:
       summary: Order create
-      description: Create a new order.
+      description: "Create a new order. ; ตัดสต็อก - ลด productremain ตาม qty ของสินค้าทุกรายการ (ติดลบได้) ; สินค้าที่ไม่พบในร้าน (ไม่มี / ปิดใช้งาน / ต่างร้าน) -> 402 Product not found"
       tags:
         - Order
       security:
@@ -892,7 +892,7 @@ paths:
   /api/pos/orderupdate:
     put:
       summary: Order update
-      description: update a new order.
+      description: "update a new order. ; ตัดสต็อก - ปรับ productremain ตามส่วนต่างของรายการใหม่ ; ถ้า orderstatus เป็น 3, 4, 8, 9 คืนสต็อกทั้งหมด ; ออเดอร์ที่ยกเลิกแล้วแก้ไขไม่ได้ (409) ; สินค้าที่ไม่พบ -> 402"
       tags:
         - Order
       security:
@@ -1041,7 +1041,7 @@ paths:
   /api/pos/orderupdatestatus:
     put:
       summary: Order update status
-      description: "Update the status of an order. ; แบ่งชำระ - ส่ง orderispay = 1 ได้เมื่อชำระครบแล้วเท่านั้น (ยังไม่ครบ -> 409)"
+      description: "Update the status of an order. ; แบ่งชำระ - ส่ง orderispay = 1 ได้เมื่อชำระครบแล้วเท่านั้น (ยังไม่ครบ -> 409) ; ยกเลิก (orderstatus 3, 4, 8, 9) -> บวก productremain คืน ; ออเดอร์ที่ยกเลิกแล้วเปลี่ยนสถานะไม่ได้ (ตอบ The order has been canceled.) ต้องสั่งออเดอร์ใหม่"
       tags:
         - Order
       security:
@@ -1122,7 +1122,7 @@ paths:
   /api/pos/orderdelete:
     post:
       summary: Order delete
-      description: Delete an order.
+      description: "Delete an order. ; คืนสต็อกสินค้า (บวก productremain) ถ้ายังไม่ได้คืน"
       tags:
         - Order
       security:
@@ -1197,6 +1197,7 @@ paths:
       summary: รับออเดอร์ Online จากระบบภายนอก
       description: |
         เก็บแยกจาก order หลัก (ตาราง onlineorderinfo / onlineorderdetail) และไม่ผูกกับร้าน
+        ไม่ตัดสต็อก POS (ออเดอร์ Online แยก stock กับ POS)
         - ต้องมี X-API-KEY และ token จาก /api/pos/signin
         - แสดงเฉพาะในรายงานการสั่งซื้อของ Backoffice เมื่อ Admin เลือก Online หรือ ทั้งหมด
         - ไม่นับรวมในยอดรวม และไม่แสดงใน Dashboard
@@ -2797,7 +2798,7 @@ paths:
   /api/pos/orderrefund:
     put:
       summary: ยกเลิก / คืนเงินทั้งใบ
-      description: "ใช้ได้ทั้งบิลช่องทางเดียวและบิลแบ่งชำระที่ชำระครบแล้ว ; paymentstatus -> 3 และทุกส่วนที่สำเร็จ -> 4 คืนเงินแล้ว ; บันทึกเหตุผล ผู้ทำรายการ (จาก token) ผู้อนุมัติ และเวลา ; ใบเสร็จยังเก็บไว้ รายงานจะไม่นับยอดและแสดงว่าคืนเงิน ; refundlines ใช้อ้างอิง transactionid ตอน Void ที่ EDC ; สถานะออเดอร์ยังเปลี่ยนด้วย /api/pos/orderupdatestatus ตามเดิม"
+      description: "ใช้ได้ทั้งบิลช่องทางเดียวและบิลแบ่งชำระที่ชำระครบแล้ว ; paymentstatus -> 3 และทุกส่วนที่สำเร็จ -> 4 คืนเงินแล้ว ; บันทึกเหตุผล ผู้ทำรายการ (จาก token) ผู้อนุมัติ และเวลา ; ใบเสร็จยังเก็บไว้ รายงานจะไม่นับยอดและแสดงว่าคืนเงิน ; refundlines ใช้อ้างอิง transactionid ตอน Void ที่ EDC ; สถานะออเดอร์ยังเปลี่ยนด้วย /api/pos/orderupdatestatus ตามเดิม ; คืนสต็อกสินค้า (บวก productremain) ; ถ้าคืนไปแล้วจากการยกเลิกจะไม่คืนซ้ำ"
       tags:
         - Payment
       security:

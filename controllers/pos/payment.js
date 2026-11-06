@@ -13,6 +13,7 @@ const jwt = require("jsonwebtoken");
 const { uuid } = require("uuidv4");
 const { checkString, validateApiKey, checkAuthorizetion, eventlog } = require("../../modules/fun");
 const SP = require("../../modules/splitPayment");
+const PS = require("../../modules/productStock");
 
 require("dotenv").config();
 
@@ -477,6 +478,9 @@ exports.orderrefund = (req, res) => {
           update_at: t,
         };
         await trx("orderpayment").where({ orderpaymentid: head.orderpaymentid }).update(upd);
+
+        // คืนเงินทั้งใบ -> คืนสต็อกสินค้า (ถ้าคืนไปแล้วตอนยกเลิกออเดอร์จะไม่คืนซ้ำ)
+        await PS.restoreOrderStock(trx, { ordernumber, shopid: head.shopid, movementtype: PS.MOVE.REFUND, source: "POS" });
 
         const view = await statusView(trx, Object.assign({}, head, upd));
         logText = `คืนเงินบิล "${ordernumber}" ${before.paymenttext || ""} เหตุผล: ${reason}`;

@@ -20,6 +20,7 @@ const {
 
 } = require("../../modules/fun"); // ใช้บันทึก log
 const SP = require("../../modules/splitPayment"); // แบ่งชำระ
+const PS = require("../../modules/productStock"); // ตัด / คืนสต็อกสินค้า
 
 require("dotenv").config();
 
@@ -337,19 +338,10 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           }
 
           countQTY += element.qty;
-  
-          const db_productid = await db
-            .select("productid")
-            .from("productinfo")
-            .where({ productid: element.productid });
-  
-          if (!db_productid.length) {
-            return reject({
-              status: 402,
-              message: `Product "${element.productnameeng}" is not in the system!`,
-            });
-          }
         }
+
+        // สินค้าต้องมีอยู่ในร้าน (ไม่พบ -> สร้างออเดอร์ไม่ได้)
+        await PS.assertProductsExist(db, shopid, productinorder);
   
         // Convert starttime and endtime to timestamps
         const timeStampStart = Date.parse(`2000-01-01 ${starttime}`);
@@ -451,25 +443,30 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
 
         const orderpricenet = Number(ordertotalprice) - Number(ordertotaldiscount);
   
-        await db("orderinfo").insert({
-          orderid: uuid_orderid,
-          shopid,
-          ordernumber,
-          ordertimestamp,
-          orderstatus: 0,
-          ordertotalprice: Number(ordertotalprice),
-          ordertotaldiscount: Number(ordertotaldiscount),
-          orderpricenet: orderpricenet >= 0 ? orderpricenet : 0,
-          orderispay: 0,
-          pickupnow,
-          starttime,
-          endtime,
-          ordertype: 1, 
-          terminalid: terminalid_,
-          transactionid: transactionid_,
+        await db.transaction(async (trx) => {
+          await trx("orderinfo").insert({
+            orderid: uuid_orderid,
+            shopid,
+            ordernumber,
+            ordertimestamp,
+            orderstatus: 0,
+            ordertotalprice: Number(ordertotalprice),
+            ordertotaldiscount: Number(ordertotaldiscount),
+            orderpricenet: orderpricenet >= 0 ? orderpricenet : 0,
+            orderispay: 0,
+            pickupnow,
+            starttime,
+            endtime,
+            ordertype: 1, 
+            terminalid: terminalid_,
+            transactionid: transactionid_,
+          });
+    
+          await trx("orderdetail").insert(orderdetail_data);
+
+          // ตัดสต็อกสินค้า (productremain ติดลบได้)
+          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.CREATE, source: "POS" });
         });
-  
-        await db("orderdetail").insert(orderdetail_data);
   
         resolve({
           ordernumber,
@@ -994,19 +991,16 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           }
 
           countQTY += element.qty;
-
-          const db_productid = await db
-            .select("productid")
-            .from("productinfo")
-            .where({ productid: element.productid });
-
-          if (!db_productid.length) {
-            return reject({
-              status: 402,
-              message: "productid not found",
-            });
-          }
         }
+
+        // ออเดอร์ที่ยกเลิกแล้ว (3, 4, 8, 9) แก้ไขไม่ได้ ต้องสั่งออเดอร์ใหม่
+        const db_current = await db("orderinfo").select("orderstatus").where({ ordernumber }).first();
+        if (db_current && PS.isCancelledStatus(db_current.orderstatus)) {
+          return reject({ status: 409, message: "The order has been canceled." });
+        }
+
+        // สินค้าต้องมีอยู่ในร้าน (ไม่พบ -> แก้ไขออเดอร์ไม่ได้)
+        await PS.assertProductsExist(db, shopid, productinorder);
 
         // คืน slot
         const countordersqty = await db("orderinfo")
@@ -1145,8 +1139,10 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           .where({ ordernumber })
           .first();
 
-        await db("orderdetail").where({ orderid: db_order.orderid }).delete();
-        await db("orderinfo").where({ ordernumber }).delete();
+        // ลบ order เดิม + เพิ่ม order ใหม่ + ปรับสต็อกตามส่วนต่าง ใน transaction เดียวกัน
+        await db.transaction(async (trx) => {
+        await trx("orderdetail").where({ orderid: db_order.orderid }).delete();
+        await trx("orderinfo").where({ ordernumber }).delete();
 
         
         // เพิ่ม order ใหม่
@@ -1164,7 +1160,7 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
 
         const orderpricenet = Number(ordertotalprice) - Number(ordertotaldiscount);
 
-        await db("orderinfo").insert({
+        await trx("orderinfo").insert({
           orderid: uuid_orderid,
           shopid,
           ordernumber,
@@ -1183,7 +1179,15 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           terminalid: terminalid_,
         });
 
-        await db("orderdetail").insert(orderdetail_data);
+        await trx("orderdetail").insert(orderdetail_data);
+
+        // สต็อก: ยกเลิกผ่านการแก้ไข -> คืนทั้งหมด ; ไม่เช่นนั้นปรับตามส่วนต่างของรายการใหม่
+        if (PS.isCancelledStatus(orderstatus)) {
+          await PS.restoreOrderStock(trx, { ordernumber, shopid, movementtype: PS.MOVE.CANCEL, source: "POS" });
+        } else {
+          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.UPDATE, source: "POS" });
+        }
+        });
 
         resolve({
           ordernumber,
@@ -1270,7 +1274,8 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
         .where({ ordernumber })
         .first();
         
-        if(CheckOrderStatus.orderstatus == 3 || CheckOrderStatus.orderstatus == 4){
+        // ยกเลิกแล้ว (3, 4, 8, 9) เปลี่ยนสถานะไม่ได้ ต้องสั่งออเดอร์ใหม่
+        if (PS.isCancelledStatus(CheckOrderStatus.orderstatus)) {
           return reject({
             status: 200,
             message: `The order has been canceled.`,
@@ -1340,13 +1345,21 @@ const timeout = 60000; // Timeout in milliseconds (e.g., 60 seconds)
           }
         }
 
-        await db("orderinfo")
-          .where({ ordernumber })
-          .update({ 
-            orderstatus: Number(orderstatus), 
-            orderispay: Number(orderispay),
-            terminalid: terminalid_
-          });
+        await db.transaction(async (trx) => {
+          await trx("orderinfo")
+            .where({ ordernumber })
+            .update({ 
+              orderstatus: Number(orderstatus), 
+              orderispay: Number(orderispay),
+              terminalid: terminalid_
+            });
+
+          // ยกเลิก (3, 4, 8, 9) -> คืนสต็อกสินค้า
+          if (PS.isCancelledStatus(orderstatus)) {
+            const o = await trx("orderinfo").select("shopid").where({ ordernumber }).first();
+            await PS.restoreOrderStock(trx, { ordernumber, shopid: o && o.shopid, movementtype: PS.MOVE.CANCEL, source: "POS" });
+          }
+        });
   
         resolve({
           ordernumber,
@@ -2046,12 +2059,17 @@ exports.orderdelete = (req, res) => {
       );
 
       // await db("orderinfo").where({ ordernumber }).delete();
-      await db("orderinfo")
-          .where({ ordernumber })
-          .update({ 
-            status: false, 
-            terminalid: terminalid_
-          });
+      await db.transaction(async (trx) => {
+        await trx("orderinfo")
+            .where({ ordernumber })
+            .update({ 
+              status: false, 
+              terminalid: terminalid_
+            });
+
+        // ลบออเดอร์ -> คืนสต็อกสินค้า (คืนไปแล้วจะไม่คืนซ้ำ)
+        await PS.restoreOrderStock(trx, { ordernumber, shopid: db_ordernumber[0].shopid, movementtype: PS.MOVE.DELETE, source: "POS" });
+      });
   
 
       await db("receiptinfo").select("receiptnumber").where({ ordernumber }).first()

@@ -991,7 +991,7 @@ paths:
   /api/ordercreate:
     post:
       summary: Order create
-      description: Create a new order.
+      description: "Create a new order. ; ตัดสต็อก - ลด productremain ตาม qty ของสินค้าทุกรายการ (ติดลบได้) ; สินค้าที่ไม่พบในร้าน -> 402 Product not found"
       tags:
         - Order
       security:
@@ -1123,7 +1123,7 @@ paths:
   /api/orderupdatestatus:
     put:
       summary: Order update status
-      description: Update the status of an order.
+      description: "Update the status of an order. ; ยกเลิก (orderstatus 3, 4, 8, 9) -> บวก productremain คืน ; ออเดอร์ที่ยกเลิกแล้วเปลี่ยนสถานะไม่ได้"
       tags:
         - Order
       security:

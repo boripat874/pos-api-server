@@ -14,6 +14,7 @@ const {
 } = require("../modules/fun"); // ใช้บันทึก log
 
 const {convertTotimestamp} = require("../modules/convertTotimestamp");
+const PS = require("../modules/productStock"); // ตัด / คืนสต็อกสินค้า
 
 require("dotenv").config();
 
@@ -947,19 +948,10 @@ exports.ordercreate = (req, res) => {
           }
 
           countQTY += element.qty;
-  
-          const db_productid = await db
-            .select("productid")
-            .from("productinfo")
-            .where({ productid: element.productid });
-  
-          if (!db_productid.length) {
-            return reject({
-              status: 402,
-              message: `Product "${element.productnameeng}" is not in the system!`,
-            });
-          }
         }
+
+        // สินค้าต้องมีอยู่ในร้าน (ไม่พบ -> สร้างออเดอร์ไม่ได้)
+        await PS.assertProductsExist(db, shopid, productinorder);
   
         // Convert starttime and endtime to timestamps
         const timeStampStart = Date.parse(`2000-01-01 ${starttime}`);
@@ -1065,23 +1057,28 @@ exports.ordercreate = (req, res) => {
           odetailremark: element.remark,
         }));
   
-        await db("orderinfo").insert({
-          orderid: uuid_orderid,
-          shopid,
-          ordernumber,
-          ordertimestamp,
-          orderstatus: 0,
-          ordertotalprice: Number(ordertotalprice),
-          ordertotaldiscount: Number(ordertotaldiscount),
-          orderispay: 0,
-          pickupnow,
-          starttime,
-          endtime,
-          ordertype: 0,
-          
+        await db.transaction(async (trx) => {
+          await trx("orderinfo").insert({
+            orderid: uuid_orderid,
+            shopid,
+            ordernumber,
+            ordertimestamp,
+            orderstatus: 0,
+            ordertotalprice: Number(ordertotalprice),
+            ordertotaldiscount: Number(ordertotaldiscount),
+            orderispay: 0,
+            pickupnow,
+            starttime,
+            endtime,
+            ordertype: 0,
+            
+          });
+    
+          await trx("orderdetail").insert(orderdetail_data);
+
+          // ตัดสต็อกสินค้า (productremain ติดลบได้)
+          await PS.syncOrderStock(trx, { ordernumber, shopid, items: productinorder, movementtype: PS.MOVE.CREATE, source: "ZOOAPP" });
         });
-  
-        await db("orderdetail").insert(orderdetail_data);
   
         resolve({
           ordernumber,
@@ -1484,7 +1481,8 @@ exports.orderupdatestatus = (req, res) => {
         .where({ ordernumber })
         .first();
         
-      if(CheckOrderStatus.orderstatus == 3 || CheckOrderStatus.orderstatus == 4){
+      // ยกเลิกแล้ว (3, 4, 8, 9) เปลี่ยนสถานะไม่ได้ ต้องสั่งออเดอร์ใหม่
+      if (PS.isCancelledStatus(CheckOrderStatus.orderstatus)) {
         return reject({
           status: 200,
           message: `The order has been canceled.`,
@@ -1546,9 +1544,17 @@ exports.orderupdatestatus = (req, res) => {
         
       }
       
-      await db("orderinfo")
-        .where({ ordernumber })
-        .update({ orderstatus: Number(orderstatus) });
+      await db.transaction(async (trx) => {
+        await trx("orderinfo")
+          .where({ ordernumber })
+          .update({ orderstatus: Number(orderstatus) });
+
+        // ยกเลิก (3, 4, 8, 9) -> คืนสต็อกสินค้า
+        if (PS.isCancelledStatus(orderstatus)) {
+          const o = await trx("orderinfo").select("shopid").where({ ordernumber }).first();
+          await PS.restoreOrderStock(trx, { ordernumber, shopid: o && o.shopid, movementtype: PS.MOVE.CANCEL, source: "ZOOAPP" });
+        }
+      });
 
       resolve({
         ordernumber,
