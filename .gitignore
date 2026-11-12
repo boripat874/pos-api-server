@@ -1,3 +1,8 @@
 node_modules
 private.key
 logs
+ecosystem.config.js
+.env
+datacsv
+test.js
+test2.js

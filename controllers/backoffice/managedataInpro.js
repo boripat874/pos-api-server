@@ -406,7 +406,8 @@ exports.productcreateMultiple = async (req, res) => {
                         productprice: Number(product.productprice) || 0,
                         uomtext: "ชิ้น",
                         productimage: imagePath, // เก็บ path ของไฟล์ที่อัปโหลด
-                        productremain: Number(product.productremain) || 0
+                        productremain: Number(product.productremain) || 0,
+                        synconline: false // นำเข้าจาก CSV ไม่ได้ส่งไป ZooApp : กด sync online ภายหลังได้
                     });
                 }
             });

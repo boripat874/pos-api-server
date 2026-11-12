@@ -41,6 +41,7 @@ router.post("/backoffice/productcreate",productinfo.productcreate);
 router.post("/backoffice/productdetail",productinfo.productdetail);
 router.put("/backoffice/productupdate",productinfo.productupdate);
 router.delete("/backoffice/productdelete",productinfo.productdelete);
+router.post("/backoffice/productsynconline",productinfo.productsynconline); // ส่งสินค้าไป ZooApp ภายหลัง
 router.post("/backoffice/productcategorylist",productinfo.productcategorylist);
 router.put("/backoffice/productupdatestock",productinfo.productupdatestock);
 

@@ -37,6 +37,7 @@ const corsOptions = {
     // origin: 'http://58.136.159.58:3001',
     origin: true,
     credentials: true,
+    maxAge: 600, // เบราว์เซอร์จำผล preflight (OPTIONS) 10 นาที ไม่ต้องยิง OPTIONS ก่อนทุก request
 };
 // 58.136.159.58
 

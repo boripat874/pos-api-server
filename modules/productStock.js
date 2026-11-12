@@ -5,7 +5,7 @@
 //   - ยกเลิก (3,4,8,9) / คืนเงิน / ลบออเดอร์ -> บวกคืนเท่าที่ตัดไป
 //   ทุกการเปลี่ยนแปลงบันทึกในตาราง productstockmovement (ใช้ตรวจสอบ และกันการคืนซ้ำ)
 //   ออเดอร์ Online จากระบบภายนอก (/api/pos/orderinsert) ไม่ตัดสต็อก (แยก stock กัน)
-//   ออเดอร์ ZooApp (ordertype 0) ของร้านของฝาก (shoptype = SOUVENIRS) ไม่ตัดสต็อก POS (แยก stock)
+//   ออเดอร์ ZooApp (ordertype 0) ของร้านของที่ระลึก (SOUVENIRS) และร้านขายตั๋ว (TICKET) ไม่ตัดสต็อก POS (แยก stock)
 //   ร้านอาหารตัด / คืนตามปกติ
 // =====================================================================
 const { db } = require("../db/postgresql");
@@ -15,7 +15,7 @@ const CANCELLED_ORDERSTATUS = [3, 4, 8, 9];
 const isCancelledStatus = (s) => s !== null && s !== undefined && CANCELLED_ORDERSTATUS.includes(Number(s));
 
 const ORDERTYPE_ZOOAPP = 0;            // orderinfo.ordertype : 0 = Online (ZooApp), 1 = POS
-const SHOPTYPE_SEPARATE_STOCK = ["SOUVENIRS"]; // ร้านที่ ZooApp แยก stock กับ POS
+const SHOPTYPE_SEPARATE_STOCK = ["SOUVENIRS", "TICKET"]; // ร้านที่ ZooApp แยก stock กับ POS (ของที่ระลึก, ขายตั๋ว)
 
 // ออเดอร์นี้ต้องตัดสต็อก POS หรือไม่
 async function isStockTracked(trx, { shopid, ordertype }) {

@@ -5,7 +5,7 @@ info:
     API for POS System (เครื่อง POS) และ Backoffice
     - /api/pos/* : เครื่อง POS
     - /api/backoffice/* : เว็บ Backoffice (อยู่ท้ายเอกสาร)
-  version: 1.0.11
+  version: 1.0.13
 servers:
   - url: "http://10.10.46.2:80"
     description: Development Server
@@ -4783,7 +4783,7 @@ paths:
                   description: รหัส merchant
                 shoptype:
                   type: string
-                  description: ประเภทร้าน
+                  description: "ประเภทร้าน : FOOD = อาหาร , SOUVENIRS = ของที่ระลึก , TICKET = ขายตั๋ว (1.0.13 ; ออเดอร์ ZooApp ของ SOUVENIRS / TICKET ไม่ตัด stock POS)"
                 shopnameth:
                   type: string
                   description: ชื่อร้าน (ไทย)
@@ -4915,7 +4915,7 @@ paths:
                   description: รหัสร้าน
                 shoptype:
                   type: string
-                  description: ประเภทร้าน
+                  description: "ประเภทร้าน : FOOD = อาหาร , SOUVENIRS = ของที่ระลึก , TICKET = ขายตั๋ว (1.0.13 ; ออเดอร์ ZooApp ของ SOUVENIRS / TICKET ไม่ตัด stock POS)"
                 shopnameth:
                   type: string
                   description: ชื่อร้าน (ไทย)
@@ -5203,6 +5203,7 @@ paths:
                     productnameth: ไข่เจียว
                     productnameeng: Omelette
                     productimage: uploads/productimage-1761000000.png
+                    synconline: true
         "400":
           description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
         "401":
@@ -5217,6 +5218,9 @@ paths:
       description: |
         ส่งแบบ multipart/form-data (รูปสินค้า field `productimage`)
         additional = ตัวเลือกเพิ่มเติม คั่นด้วย # เช่น #เผ็ดมาก#เผ็ดน้อย
+        synconline (1.0.13) = ส่งไปสร้างสินค้าที่ ZooApp (POST {API_ZOO}/foods) ด้วยหรือไม่ ; ไม่ส่งค่า = true
+          - true : ถ้า ZooApp ไม่สำเร็จ จะไม่สร้างสินค้าฝั่ง POS (ตอบ 502 พร้อม message จาก ZooApp)
+          - false : สร้างเฉพาะฝั่ง POS ; ส่งไป ZooApp ภายหลังด้วย /api/backoffice/productsynconline
       tags:
         - Backoffice - Product
       security:
@@ -5256,6 +5260,11 @@ paths:
                 additional:
                   type: string
                   description: ตัวเลือกเพิ่มเติม
+                synconline:
+                  type: string
+                  enum: ["true", "false"]
+                  default: "true"
+                  description: sync online = ส่งไปสร้างที่ ZooApp ด้วย (1.0.13)
                 productimage:
                   type: string
                   format: binary
@@ -5272,6 +5281,7 @@ paths:
             application/json:
               example:
                 productid: P001
+                synconline: true
                 message: Create product Success
         "400":
           description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
@@ -5279,6 +5289,8 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "502":
+          description: ส่งข้อมูลไป ZooApp ไม่สำเร็จ (สินค้าไม่ถูกสร้างฝั่ง POS)
         "500":
           description: Internal Server Error
   /api/backoffice/productdetail:
@@ -5322,6 +5334,7 @@ paths:
                 additional: "#เผ็ดมาก#เผ็ดน้อย"
                 productremain: 20
                 update_PRemain: "2026-10-25 09:00"
+                synconline: true
                 promotion:
                   - promotionid: PR001
                     typepromotions: ลดราคา
@@ -5343,7 +5356,12 @@ paths:
   /api/backoffice/productupdate:
     put:
       summary: แก้ไขสินค้า
-      description: ส่งแบบ multipart/form-data ; บันทึก update_at = เวลาอัพเดตข้อมูลสินค้าล่าสุด
+      description: |
+        ส่งแบบ multipart/form-data ; บันทึก update_at = เวลาอัพเดตข้อมูลสินค้าล่าสุด
+        (1.0.13) สินค้าที่ synconline = true : แก้ที่ ZooApp (PUT {API_ZOO}/foods/{productid}) ก่อน
+          ถ้า ZooApp ไม่สำเร็จ ตอบ 502 และไม่แก้ฝั่ง POS
+          ถ้า ZooApp ไม่พบสินค้า (404) แก้ฝั่ง POS และเปลี่ยน synconline = false (กด sync online ใหม่ได้)
+        สินค้าที่ synconline = false : แก้เฉพาะฝั่ง POS
       tags:
         - Backoffice - Product
       security:
@@ -5399,6 +5417,7 @@ paths:
             application/json:
               example:
                 productid: P001
+                synconline: true
                 message: Update product Success
         "400":
           description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
@@ -5406,11 +5425,17 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "502":
+          description: แก้ไขที่ ZooApp ไม่สำเร็จ (ฝั่ง POS ไม่ถูกแก้)
         "500":
           description: Internal Server Error
   /api/backoffice/productdelete:
     delete:
       summary: ลบสินค้า
+      description: |
+        (1.0.13) สินค้าที่ synconline = true : ลบที่ ZooApp (DELETE {API_ZOO}/foods/{productid}) ก่อน
+          ZooApp ไม่มีสินค้านี้ (404) ถือว่าสำเร็จ ; ZooApp ไม่สำเร็จแบบอื่น ตอบ 502 และไม่ลบฝั่ง POS
+        สินค้าที่ synconline = false : ลบเฉพาะฝั่ง POS
       tags:
         - Backoffice - Product
       security:
@@ -5445,6 +5470,56 @@ paths:
           description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
         "402":
           description: ข้อผิดพลาดทางธุรกิจ เช่น ไม่พบข้อมูล หรือ Request timed out (ดู message)
+        "502":
+          description: ลบที่ ZooApp ไม่สำเร็จ (ฝั่ง POS ไม่ถูกลบ)
+        "500":
+          description: Internal Server Error
+  /api/backoffice/productsynconline:
+    post:
+      summary: sync online สินค้า (ส่งไปสร้างที่ ZooApp ภายหลัง)
+      description: |
+        (1.0.13) ใช้กับสินค้าที่ synconline = false (สร้างโดยไม่ติ๊ก sync online หรือนำเข้าจาก CSV)
+        ส่ง POST {API_ZOO}/foods ด้วยข้อมูลปัจจุบันของสินค้า แล้วตั้ง synconline = true
+        ถ้า ZooApp ตอบว่ามีสินค้านี้อยู่แล้ว (409) ถือว่า sync สำเร็จ
+      tags:
+        - Backoffice - Product
+      security:
+        - api_key: []
+        - Authorization: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                productid:
+                  type: string
+                  description: รหัสสินค้า
+              required:
+                - productid
+            example:
+              productid: P001
+      responses:
+        "200":
+          description: Success response
+          content:
+            application/json:
+              example:
+                productid: P001
+                productnameth: ไข่เจียว
+                synconline: true
+                message: Sync online Success
+        "400":
+          description: Invalid request (ข้อมูลที่ส่งมาไม่ถูกต้อง)
+        "401":
+          description: Unauthorized (API key / token ไม่ถูกต้อง หมดอายุ หรือถูก revoke)
+        "402":
+          description: ไม่พบสินค้า (หรือถูกลบแล้ว) / Request timed out
+        "409":
+          description: สินค้านี้ sync online แล้ว
+        "502":
+          description: ส่งข้อมูลไป ZooApp ไม่สำเร็จ (synconline ยังเป็น false)
         "500":
           description: Internal Server Error
   /api/backoffice/productcategorylist:
@@ -8149,7 +8224,7 @@ paths:
                   description: กลุ่มร้าน
                 shoptype:
                   type: string
-                  description: ประเภทร้าน
+                  description: "ประเภทร้าน : FOOD = อาหาร , SOUVENIRS = ของที่ระลึก , TICKET = ขายตั๋ว (1.0.13 ; ออเดอร์ ZooApp ของ SOUVENIRS / TICKET ไม่ตัด stock POS)"
             example:
               ugroupid: G001
               shoptype: Food

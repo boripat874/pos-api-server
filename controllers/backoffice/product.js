@@ -7,6 +7,7 @@ const path = require("path");
 // const { console } = require("inspector");
 const jwt = require("jsonwebtoken"); // ใช้สําหรับสร้างและตรวจสอบ JWT
 const axios = require('axios');
+const { zooCreate, zooUpdate, zooDelete, parseSyncOnline } = require("../../modules/zooFoods"); // sync online -> ZooApp
 const {eventlog, notification , checkAuthorizetion} = require("../../modules/fun"); // ใช้บันทึก log
 const { productslist } = require("./promotions");
 const { shoplist } = require("./shop");
@@ -347,6 +348,7 @@ exports.productlist = (req, res) => {
             productnameth: element.productnameth,
             productnameeng: element.productnameeng,
             productimage: element.productimage,
+            synconline: element.synconline !== false, // ส่งข้อมูลไป ZooApp แล้วหรือยัง
             // additional: element.additional,
             // productCgtyId: element.productCgtyId,
           });
@@ -479,6 +481,7 @@ exports.productdetail = (req, res) => {
             additional: element.additional,
             productremain: Number(element.productremain),
             update_PRemain: date.format(new Date(element.update_PRemain*1000), "YYYY-MM-DD HH:mm"),
+            synconline: element.synconline !== false, // ส่งข้อมูลไป ZooApp แล้วหรือยัง
             promotion: promotionslist,
           };
       });
@@ -532,6 +535,8 @@ exports.productcreate = [
         productCgtyId,
         additional
     } = req.body;
+    // sync online : ส่งไปสร้างที่ ZooApp ด้วย (ค่าเริ่มต้น = ส่ง)
+    const synconline = parseSyncOnline(req.body.synconline, true);
     
     const productCreateLogic = new Promise(async (resolve, reject) => {
         try {
@@ -540,37 +545,6 @@ exports.productcreate = [
         await validateApiKey(req);
 
         await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
-
-        const payloadZoo = {
-          productId: productid,
-          posShopId: shopid, 
-          nameTh: productnameth,
-          nameEn: productnameeng,
-          detailTh: productdatath,
-          detailEn: productdataeng,
-          price: productprice,
-          // status: "ACTIVE"
-        }
-
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL_ZOO}/foods`,
-          payloadZoo,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-KEY': `${process.env.NEXT_PUBLIC_API_ZOO_KEY}`,
-            },
-          }
-        );
-
-        if (response.status === 200) {
-          console.log("SmartZoo response success : ", response.data);
-        } else {
-          console.log("SmartZoo status  : ", response.status);
-          console.log("SmartZoo error : ", response.data);
-
-          return reject({ status: 402, message: "SmartZoo error" });
-        }
 
         if (
             !productid ||
@@ -623,21 +597,29 @@ exports.productcreate = [
         }
 
 
-        await db("productinfo").insert({
-            productid,
-            shopid,
-            productCgtyId,
-            productnameth,
-            productnameeng,
-            productdatath,
-            productdataeng,
-            productprice: Number(productprice),
-            uomtext: "ชิ้น",
-            additional,
-            productimage: imagePath, // เก็บ path ของไฟล์ที่อัปโหลด
+        // บันทึกใน transaction : ถ้าส่ง ZooApp ไม่สำเร็จ จะไม่สร้างสินค้าฝั่ง POS
+        await db.transaction(async (trx) => {
+          await trx("productinfo").insert({
+              productid,
+              shopid,
+              productCgtyId,
+              productnameth,
+              productnameeng,
+              productdatath,
+              productdataeng,
+              productprice: Number(productprice),
+              uomtext: "ชิ้น",
+              additional,
+              productimage: imagePath, // เก็บ path ของไฟล์ที่อัปโหลด
+              synconline,
+          });
+
+          if (synconline) {
+            await zooCreate({ productid, shopid, productnameth, productnameeng, productdatath, productdataeng, productprice });
+          }
         });
 
-        resolve({productid, message: "Create product Success",});
+        resolve({productid, synconline, message: "Create product Success",});
 
         } catch (error) {
             reject(error);
@@ -657,8 +639,8 @@ exports.productcreate = [
 
     .catch((error) => {
 
-        if (imagePath) {
-
+        if (req.file) {
+            // ลบเฉพาะไฟล์ที่เพิ่งอัปโหลด (ห้ามลบรูปตั้งต้น uploads/imageplacehold.png)
             deleteUploadedFile(imagePath); // ลบไฟล์ที่อัปโหลดหากเกิดข้อผิดพลาด
         }
 
@@ -795,35 +777,6 @@ exports.productupdate = [
 
         await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
 
-        const payloadZoo = {
-          nameTh: productnameth,
-          nameEn: productnameeng,
-          detailTh: productdatath,
-          detailEn: productdataeng,
-          price: productprice,
-          // status: "ACTIVE"
-        }
-
-        const response = await axios.put(
-          `${process.env.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,
-          payloadZoo,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-KEY': `${process.env.NEXT_PUBLIC_API_ZOO_KEY}`,
-            },
-          }
-        );
-
-        if (response.status === 200) {
-          console.log("SmartZoo response success : ", response.data);
-        } else {
-          console.log("SmartZoo status  : ", response.status);
-          console.log("SmartZoo error : ", response.data);
-
-          return reject({ status: 402, message: "SmartZoo error" });
-        }
-
         if (
             !productid ||
             !shopid ||
@@ -834,7 +787,7 @@ exports.productupdate = [
         }
 
         const db_productid = await db
-            .select("productid")
+            .select("productid", "synconline")
             .from("productinfo")
             .where({ productid });
 
@@ -864,9 +817,23 @@ exports.productupdate = [
             });
         }
 
+        // สินค้าที่ sync online แล้ว : แก้ที่ ZooApp ก่อน ถ้าไม่สำเร็จจะไม่แก้ฝั่ง POS
+        // ไม่ได้ sync online : แก้เฉพาะฝั่ง POS
+        let synconline = db_productid[0].synconline !== false;
+        let zooNotFound = false;
+        if (synconline) {
+          const r = await zooUpdate({ productid, shopid, productnameth, productnameeng, productdatath, productdataeng, productprice });
+          if (r.notFound) {
+            // ZooApp ไม่มีสินค้านี้ : เปลี่ยนเป็นยังไม่ sync (กด sync online เพื่อสร้างใหม่ได้)
+            zooNotFound = true;
+            synconline = false;
+          }
+        }
+
         await db("productinfo")
             .where({ productid })
             .update({
+              synconline,
               productnameth,
               productnameeng,
               productCgtyId,
@@ -880,7 +847,10 @@ exports.productupdate = [
 
         resolve({
             productid,
-            message: "Update product Success",
+            synconline,
+            message: zooNotFound
+              ? "Update product Success (ไม่พบสินค้านี้ใน ZooApp : เปลี่ยนเป็นยังไม่ sync online)"
+              : "Update product Success",
         });
         } catch (error) {
             reject(error);
@@ -931,25 +901,6 @@ const productDeleteLogic = new Promise(async (resolve, reject) => {
 
     await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
 
-    const response = await axios.delete(
-      `${process.env.NEXT_PUBLIC_API_URL_ZOO}/foods/${productid}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': `${process.env.NEXT_PUBLIC_API_ZOO_KEY}`,
-        },
-      }
-    );
-
-    if (response.status === 200) {
-      console.log("SmartZoo response success : ", response.data);
-    } else {
-      console.log("SmartZoo status  : ", response.status);
-      console.log("SmartZoo error : ", response.data);
-
-      return reject({ status: 402, message: "SmartZoo error" });
-    }
-
     if (!productid || !checkString(productid)) {
         return reject({ status: 400, message: "Invalid request" });
     }
@@ -964,6 +915,11 @@ const productDeleteLogic = new Promise(async (resolve, reject) => {
         status: 402,
         message: "productid not found",
         });
+    }
+
+    // สินค้าที่ sync online แล้ว : ลบที่ ZooApp ก่อน (ไม่มีอยู่แล้วถือว่าสำเร็จ) ; ไม่ได้ sync : ลบเฉพาะฝั่ง POS
+    if (db_productid[0].synconline !== false && db_productid[0].status !== false) {
+      await zooDelete(productid);
     }
 
     await db("productinfo")
@@ -997,6 +953,72 @@ Promise.race([productDeleteLogic, timeoutPromise])
     } else {
         handleError(error, res);
     }
+    });
+};
+
+
+// product sync online : ส่งสินค้าที่ยังไม่ได้ sync ไปสร้างที่ ZooApp ภายหลัง (POS_Server 1.0.13)
+exports.productsynconline = (req, res) => {
+
+  const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), timeout)
+  );
+
+  const { productid } = req.body || {};
+
+  const productSyncLogic = new Promise(async (resolve, reject) => {
+    try {
+
+      await validateApiKey(req);
+      await checkAuthorizetion(req); // ตรวจสอบสิทธิ์การใช้งาน
+
+      if (!productid || !checkString(productid)) {
+        return reject({ status: 400, message: "Invalid request" });
+      }
+
+      const product = await db("productinfo")
+        .select("productid", "shopid", "productnameth", "productnameeng", "productdatath", "productdataeng", "productprice", "synconline", "status")
+        .where({ productid })
+        .first();
+
+      if (!product || product.status === false) {
+        return reject({ status: 402, message: "productid not found" });
+      }
+
+      if (product.synconline !== false) {
+        return reject({ status: 409, message: "สินค้านี้ sync online แล้ว" });
+      }
+
+      const r = await zooCreate(product);
+
+      await db("productinfo")
+        .where({ productid })
+        .update({ synconline: true, update_at: Math.floor(Date.now() / 1000) });
+
+      resolve({
+        productid,
+        productnameth: product.productnameth,
+        synconline: true,
+        message: r.alreadyExists ? "Sync online Success (มีสินค้านี้ใน ZooApp อยู่แล้ว)" : "Sync online Success",
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+
+  Promise.race([productSyncLogic, timeoutPromise])
+    .then(async (data) => {
+      await eventlog(req, "sync online รายการสินค้า"); // บันทึก log
+      res.json(data);
+    })
+    .catch((error) => {
+      if (error.status) {
+        res.status(error.status).json({ productid, message: error.message });
+      } else if (error.message === "Request timed out") {
+        res.status(402).json({ message: "Request timed out" });
+      } else {
+        handleError(error, res);
+      }
     });
 };
 
